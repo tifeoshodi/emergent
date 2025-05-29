@@ -75,6 +75,8 @@ class UserCreate(BaseModel):
     email: str
     role: UserRole
     discipline: Optional[str] = None
+    hourly_rate: Optional[float] = None
+    availability: Optional[float] = 1.0
 
 class Project(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
