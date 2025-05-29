@@ -1,0 +1,522 @@
+import requests
+import json
+from datetime import datetime, timedelta
+import time
+import uuid
+import sys
+
+# Backend URL from frontend/.env
+BACKEND_URL = "https://526b0f27-3b4b-4c49-a6fe-78e71b675c83.preview.emergentagent.com/api"
+
+# Test results tracking
+test_results = {
+    "passed": 0,
+    "failed": 0,
+    "tests": []
+}
+
+def log_test(name, passed, message=""):
+    """Log test results"""
+    status = "PASS" if passed else "FAIL"
+    print(f"{status}: {name} - {message}")
+    test_results["tests"].append({
+        "name": name,
+        "passed": passed,
+        "message": message
+    })
+    if passed:
+        test_results["passed"] += 1
+    else:
+        test_results["failed"] += 1
+
+def test_api_health():
+    """Test API health endpoint"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/")
+        log_test("API Health Check", response.status_code == 200, f"Status code: {response.status_code}")
+    except Exception as e:
+        log_test("API Health Check", False, f"Exception: {str(e)}")
+
+# User data for testing
+users_data = [
+    {
+        "name": "John Smith",
+        "email": "john.smith@epc.com",
+        "role": "project_manager",
+        "discipline": "Management"
+    },
+    {
+        "name": "Sarah Johnson",
+        "email": "sarah.johnson@epc.com",
+        "role": "engineering_manager",
+        "discipline": "Engineering"
+    },
+    {
+        "name": "Mike Chen",
+        "email": "mike.chen@epc.com",
+        "role": "senior_engineer_1",
+        "discipline": "Mechanical"
+    },
+    {
+        "name": "Lisa Anderson",
+        "email": "lisa.anderson@epc.com",
+        "role": "senior_engineer_2",
+        "discipline": "Electrical"
+    },
+    {
+        "name": "Tom Wilson",
+        "email": "tom.wilson@epc.com",
+        "role": "intermediate_engineer",
+        "discipline": "Process"
+    },
+    {
+        "name": "Emma Davis",
+        "email": "emma.davis@epc.com",
+        "role": "junior_engineer",
+        "discipline": "Civil"
+    },
+    {
+        "name": "David Brown",
+        "email": "david.brown@epc.com",
+        "role": "contractor",
+        "discipline": "Instrumentation"
+    }
+]
+
+# Store created users
+created_users = []
+
+def test_create_users():
+    """Test creating users with different roles"""
+    for user_data in users_data:
+        try:
+            response = requests.post(f"{BACKEND_URL}/users", json=user_data)
+            if response.status_code == 200:
+                user = response.json()
+                created_users.append(user)
+                log_test(f"Create User: {user_data['name']}", True, f"Created user with ID: {user['id']}")
+            else:
+                log_test(f"Create User: {user_data['name']}", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Create User: {user_data['name']}", False, f"Exception: {str(e)}")
+
+def test_get_users():
+    """Test getting all users"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/users")
+        if response.status_code == 200:
+            users = response.json()
+            log_test("Get All Users", True, f"Retrieved {len(users)} users")
+        else:
+            log_test("Get All Users", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get All Users", False, f"Exception: {str(e)}")
+
+def test_get_user_by_id():
+    """Test getting a user by ID"""
+    if not created_users:
+        log_test("Get User by ID", False, "No users created to test with")
+        return
+    
+    user_id = created_users[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/users/{user_id}")
+        if response.status_code == 200:
+            user = response.json()
+            log_test("Get User by ID", True, f"Retrieved user: {user['name']}")
+        else:
+            log_test("Get User by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get User by ID", False, f"Exception: {str(e)}")
+
+# Project data for testing
+def get_project_data():
+    """Generate project data using created users"""
+    if len(created_users) < 2:
+        return []
+    
+    # Find project managers
+    project_managers = [user for user in created_users if user["role"] == "project_manager"]
+    if not project_managers:
+        project_managers = [created_users[0]]  # Use first user if no PM found
+    
+    start_date = datetime.now().isoformat()
+    end_date = (datetime.now() + timedelta(days=90)).isoformat()
+    
+    return [
+        {
+            "name": "Oil Refinery Expansion",
+            "description": "Expansion of the existing oil refinery to increase production capacity by 25%",
+            "start_date": start_date,
+            "end_date": end_date,
+            "project_manager_id": project_managers[0]["id"]
+        },
+        {
+            "name": "Gas Pipeline Installation",
+            "description": "Installation of a new 50km gas pipeline connecting the refinery to the distribution network",
+            "start_date": start_date,
+            "end_date": end_date,
+            "project_manager_id": project_managers[0]["id"] if len(project_managers) == 1 else project_managers[1]["id"]
+        },
+        {
+            "name": "Offshore Platform Maintenance",
+            "description": "Scheduled maintenance and upgrades for offshore drilling platform",
+            "start_date": start_date,
+            "end_date": end_date,
+            "project_manager_id": project_managers[0]["id"]
+        }
+    ]
+
+# Store created projects
+created_projects = []
+
+def test_create_projects():
+    """Test creating projects"""
+    projects_data = get_project_data()
+    if not projects_data:
+        log_test("Create Projects", False, "Not enough users created to test with")
+        return
+    
+    for project_data in projects_data:
+        try:
+            response = requests.post(f"{BACKEND_URL}/projects", json=project_data)
+            if response.status_code == 200:
+                project = response.json()
+                created_projects.append(project)
+                log_test(f"Create Project: {project_data['name']}", True, f"Created project with ID: {project['id']}")
+            else:
+                log_test(f"Create Project: {project_data['name']}", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Create Project: {project_data['name']}", False, f"Exception: {str(e)}")
+
+def test_get_projects():
+    """Test getting all projects"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/projects")
+        if response.status_code == 200:
+            projects = response.json()
+            log_test("Get All Projects", True, f"Retrieved {len(projects)} projects")
+        else:
+            log_test("Get All Projects", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get All Projects", False, f"Exception: {str(e)}")
+
+def test_get_project_by_id():
+    """Test getting a project by ID"""
+    if not created_projects:
+        log_test("Get Project by ID", False, "No projects created to test with")
+        return
+    
+    project_id = created_projects[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/projects/{project_id}")
+        if response.status_code == 200:
+            project = response.json()
+            log_test("Get Project by ID", True, f"Retrieved project: {project['name']}")
+        else:
+            log_test("Get Project by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get Project by ID", False, f"Exception: {str(e)}")
+
+def test_update_project():
+    """Test updating a project"""
+    if not created_projects:
+        log_test("Update Project", False, "No projects created to test with")
+        return
+    
+    project_id = created_projects[0]["id"]
+    update_data = {
+        "status": "active",
+        "description": "Updated description for testing"
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/projects/{project_id}", json=update_data)
+        if response.status_code == 200:
+            project = response.json()
+            log_test("Update Project", True, f"Updated project status to: {project['status']}")
+        else:
+            log_test("Update Project", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Update Project", False, f"Exception: {str(e)}")
+
+# Task data for testing
+def get_task_data():
+    """Generate task data using created users and projects"""
+    if not created_users or not created_projects:
+        return []
+    
+    # Find engineers
+    engineers = [user for user in created_users if "engineer" in user["role"]]
+    if not engineers:
+        engineers = created_users  # Use all users if no engineers found
+    
+    due_date = (datetime.now() + timedelta(days=30)).isoformat()
+    
+    tasks = []
+    
+    # Project-specific tasks
+    for i, project in enumerate(created_projects):
+        for j in range(3):  # 3 tasks per project
+            engineer_idx = (i + j) % len(engineers)
+            tasks.append({
+                "title": f"Task {j+1} for {project['name']}",
+                "description": f"This is a test task for project {project['name']}",
+                "priority": ["low", "medium", "high", "critical"][j % 4],
+                "assigned_to": engineers[engineer_idx]["id"],
+                "project_id": project["id"],
+                "due_date": due_date,
+                "estimated_hours": 40.0,
+                "tags": ["test", f"project-{i}", f"priority-{j%4}"]
+            })
+    
+    # Independent tasks (not associated with any project)
+    for i in range(3):
+        engineer_idx = i % len(engineers)
+        tasks.append({
+            "title": f"Independent Task {i+1}",
+            "description": f"This is an independent test task not associated with any project",
+            "priority": ["low", "medium", "high"][i % 3],
+            "assigned_to": engineers[engineer_idx]["id"],
+            "project_id": None,
+            "due_date": due_date,
+            "estimated_hours": 20.0,
+            "tags": ["test", "independent", f"priority-{i%3}"]
+        })
+    
+    return tasks
+
+# Store created tasks
+created_tasks = []
+
+def test_create_tasks():
+    """Test creating tasks"""
+    tasks_data = get_task_data()
+    if not tasks_data:
+        log_test("Create Tasks", False, "Not enough users or projects created to test with")
+        return
+    
+    for task_data in tasks_data:
+        try:
+            response = requests.post(f"{BACKEND_URL}/tasks", json=task_data)
+            if response.status_code == 200:
+                task = response.json()
+                created_tasks.append(task)
+                log_test(f"Create Task: {task_data['title']}", True, f"Created task with ID: {task['id']}")
+            else:
+                log_test(f"Create Task: {task_data['title']}", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Create Task: {task_data['title']}", False, f"Exception: {str(e)}")
+
+def test_get_tasks():
+    """Test getting all tasks"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/tasks")
+        if response.status_code == 200:
+            tasks = response.json()
+            log_test("Get All Tasks", True, f"Retrieved {len(tasks)} tasks")
+        else:
+            log_test("Get All Tasks", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get All Tasks", False, f"Exception: {str(e)}")
+
+def test_get_task_by_id():
+    """Test getting a task by ID"""
+    if not created_tasks:
+        log_test("Get Task by ID", False, "No tasks created to test with")
+        return
+    
+    task_id = created_tasks[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/tasks/{task_id}")
+        if response.status_code == 200:
+            task = response.json()
+            log_test("Get Task by ID", True, f"Retrieved task: {task['title']}")
+        else:
+            log_test("Get Task by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get Task by ID", False, f"Exception: {str(e)}")
+
+def test_update_task():
+    """Test updating a task"""
+    if not created_tasks:
+        log_test("Update Task", False, "No tasks created to test with")
+        return
+    
+    task_id = created_tasks[0]["id"]
+    update_data = {
+        "status": "in_progress",
+        "description": "Updated description for testing",
+        "actual_hours": 10.5
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/tasks/{task_id}", json=update_data)
+        if response.status_code == 200:
+            task = response.json()
+            log_test("Update Task", True, f"Updated task status to: {task['status']}")
+        else:
+            log_test("Update Task", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Update Task", False, f"Exception: {str(e)}")
+
+def test_task_status_workflow():
+    """Test task status workflow (todo -> in_progress -> review -> done)"""
+    if not created_tasks:
+        log_test("Task Status Workflow", False, "No tasks created to test with")
+        return
+    
+    task_id = created_tasks[0]["id"]
+    statuses = ["in_progress", "review", "done"]
+    
+    for status in statuses:
+        try:
+            response = requests.put(f"{BACKEND_URL}/tasks/{task_id}", json={"status": status})
+            if response.status_code == 200:
+                task = response.json()
+                log_test(f"Task Status Update to {status}", True, f"Updated task status to: {task['status']}")
+            else:
+                log_test(f"Task Status Update to {status}", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Task Status Update to {status}", False, f"Exception: {str(e)}")
+
+def test_filter_tasks_by_project():
+    """Test filtering tasks by project_id"""
+    if not created_projects:
+        log_test("Filter Tasks by Project", False, "No projects created to test with")
+        return
+    
+    project_id = created_projects[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/tasks?project_id={project_id}")
+        if response.status_code == 200:
+            tasks = response.json()
+            log_test("Filter Tasks by Project", True, f"Retrieved {len(tasks)} tasks for project {project_id}")
+        else:
+            log_test("Filter Tasks by Project", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Filter Tasks by Project", False, f"Exception: {str(e)}")
+
+def test_filter_independent_tasks():
+    """Test filtering independent tasks (no project_id)"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/tasks?project_id=independent")
+        if response.status_code == 200:
+            tasks = response.json()
+            log_test("Filter Independent Tasks", True, f"Retrieved {len(tasks)} independent tasks")
+        else:
+            log_test("Filter Independent Tasks", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Filter Independent Tasks", False, f"Exception: {str(e)}")
+
+def test_filter_tasks_by_assignee():
+    """Test filtering tasks by assigned_to"""
+    if not created_users:
+        log_test("Filter Tasks by Assignee", False, "No users created to test with")
+        return
+    
+    user_id = created_users[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/tasks?assigned_to={user_id}")
+        if response.status_code == 200:
+            tasks = response.json()
+            log_test("Filter Tasks by Assignee", True, f"Retrieved {len(tasks)} tasks assigned to user {user_id}")
+        else:
+            log_test("Filter Tasks by Assignee", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Filter Tasks by Assignee", False, f"Exception: {str(e)}")
+
+def test_delete_task():
+    """Test deleting a task"""
+    if not created_tasks or len(created_tasks) < 2:
+        log_test("Delete Task", False, "Not enough tasks created to test with")
+        return
+    
+    # Use the last task to avoid affecting other tests
+    task_id = created_tasks[-1]["id"]
+    try:
+        response = requests.delete(f"{BACKEND_URL}/tasks/{task_id}")
+        if response.status_code == 200:
+            log_test("Delete Task", True, f"Deleted task with ID: {task_id}")
+        else:
+            log_test("Delete Task", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Delete Task", False, f"Exception: {str(e)}")
+
+def test_dashboard_stats():
+    """Test dashboard stats endpoint"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/dashboard/stats")
+        if response.status_code == 200:
+            stats = response.json()
+            log_test("Dashboard Stats", True, f"Retrieved dashboard stats: {stats}")
+        else:
+            log_test("Dashboard Stats", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Dashboard Stats", False, f"Exception: {str(e)}")
+
+def test_project_kanban():
+    """Test project kanban board endpoint"""
+    if not created_projects:
+        log_test("Project Kanban", False, "No projects created to test with")
+        return
+    
+    project_id = created_projects[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/projects/{project_id}/kanban")
+        if response.status_code == 200:
+            kanban = response.json()
+            log_test("Project Kanban", True, f"Retrieved kanban board for project {project_id}")
+        else:
+            log_test("Project Kanban", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Project Kanban", False, f"Exception: {str(e)}")
+
+def run_all_tests():
+    """Run all tests in sequence"""
+    print("\n===== STARTING EPC PROJECT MANAGEMENT BACKEND TESTS =====\n")
+    
+    # Test API health
+    test_api_health()
+    
+    # Test user endpoints
+    print("\n----- Testing User Endpoints -----\n")
+    test_create_users()
+    test_get_users()
+    test_get_user_by_id()
+    
+    # Test project endpoints
+    print("\n----- Testing Project Endpoints -----\n")
+    test_create_projects()
+    test_get_projects()
+    test_get_project_by_id()
+    test_update_project()
+    
+    # Test task endpoints
+    print("\n----- Testing Task Endpoints -----\n")
+    test_create_tasks()
+    test_get_tasks()
+    test_get_task_by_id()
+    test_update_task()
+    test_task_status_workflow()
+    test_filter_tasks_by_project()
+    test_filter_independent_tasks()
+    test_filter_tasks_by_assignee()
+    test_delete_task()
+    
+    # Test dashboard and kanban endpoints
+    print("\n----- Testing Dashboard and Kanban Endpoints -----\n")
+    test_dashboard_stats()
+    test_project_kanban()
+    
+    # Print summary
+    print("\n===== TEST SUMMARY =====")
+    print(f"Total tests: {test_results['passed'] + test_results['failed']}")
+    print(f"Passed: {test_results['passed']}")
+    print(f"Failed: {test_results['failed']}")
+    
+    # Return exit code based on test results
+    return 0 if test_results["failed"] == 0 else 1
+
+if __name__ == "__main__":
+    sys.exit(run_all_tests())
