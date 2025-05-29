@@ -377,6 +377,172 @@ async def get_project_kanban(project_id: str):
     
     return kanban_data
 
+# Gantt Chart endpoints
+@api_router.get("/projects/{project_id}/gantt", response_model=GanttData)
+async def get_project_gantt(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    
+    gantt_tasks = []
+    project_start = datetime.utcnow()
+    project_end = datetime.utcnow()
+    
+    for task in tasks:
+        task_obj = Task(**task)
+        if task_obj.start_date and task_obj.end_date:
+            gantt_task = GanttTask(
+                id=task_obj.id,
+                title=task_obj.title,
+                start_date=task_obj.start_date,
+                end_date=task_obj.end_date,
+                duration_days=task_obj.duration_days or 1.0,
+                progress_percent=task_obj.progress_percent or 0.0,
+                assigned_to=task_obj.assigned_to,
+                predecessor_tasks=task_obj.predecessor_tasks,
+                is_milestone=task_obj.is_milestone,
+                status=task_obj.status,
+                priority=task_obj.priority
+            )
+            gantt_tasks.append(gantt_task)
+            
+            # Update project timeline
+            if task_obj.start_date < project_start:
+                project_start = task_obj.start_date
+            if task_obj.end_date > project_end:
+                project_end = task_obj.end_date
+    
+    # Simple critical path calculation (can be enhanced)
+    critical_path = calculate_critical_path(gantt_tasks)
+    
+    return GanttData(
+        tasks=gantt_tasks,
+        project_start=project_start,
+        project_end=project_end,
+        critical_path=critical_path
+    )
+
+def calculate_critical_path(tasks: List[GanttTask]) -> List[str]:
+    """Simple critical path calculation - can be enhanced with proper algorithm"""
+    # For now, return tasks with longest duration and dependencies
+    sorted_tasks = sorted(tasks, key=lambda t: t.duration_days, reverse=True)
+    return [task.id for task in sorted_tasks[:3]]  # Return top 3 longest tasks
+
+@api_router.put("/tasks/{task_id}/progress")
+async def update_task_progress(task_id: str, progress: dict):
+    task = await db.tasks.find_one({"id": task_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    update_data = {
+        "progress_percent": progress.get("progress_percent", 0),
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Auto-update status based on progress
+    if progress.get("progress_percent", 0) == 100:
+        update_data["status"] = TaskStatus.DONE
+    elif progress.get("progress_percent", 0) > 0:
+        update_data["status"] = TaskStatus.IN_PROGRESS
+    
+    await db.tasks.update_one({"id": task_id}, {"$set": update_data})
+    
+    updated_task = await db.tasks.find_one({"id": task_id})
+    return Task(**updated_task)
+
+# Resource Management endpoints
+@api_router.get("/projects/{project_id}/resources", response_model=ProjectResource)
+async def get_project_resources(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    users = await db.users.find().to_list(1000)
+    
+    # Calculate resource allocation
+    resource_map = {}
+    total_hours_required = 0
+    total_hours_allocated = 0
+    
+    for task in tasks:
+        task_obj = Task(**task)
+        if task_obj.assigned_to:
+            user_id = task_obj.assigned_to
+            if user_id not in resource_map:
+                user = next((u for u in users if u["id"] == user_id), None)
+                if user:
+                    resource_map[user_id] = {
+                        "user_id": user_id,
+                        "user_name": user["name"],
+                        "discipline": user.get("discipline", "General"),
+                        "allocated_hours": 0,
+                        "available_hours": 40,  # Default 40 hours per week
+                        "tasks": []
+                    }
+            
+            if user_id in resource_map:
+                task_hours = task_obj.estimated_hours or 8  # Default 8 hours
+                resource_map[user_id]["allocated_hours"] += task_hours
+                resource_map[user_id]["tasks"].append({
+                    "id": task_obj.id,
+                    "title": task_obj.title,
+                    "hours": task_hours,
+                    "status": task_obj.status
+                })
+                total_hours_allocated += task_hours
+        
+        total_hours_required += task_obj.estimated_hours or 8
+    
+    # Convert to ResourceAllocation objects
+    resources = []
+    for resource_data in resource_map.values():
+        utilization = (resource_data["allocated_hours"] / resource_data["available_hours"]) * 100
+        resources.append(ResourceAllocation(
+            user_id=resource_data["user_id"],
+            user_name=resource_data["user_name"],
+            discipline=resource_data["discipline"],
+            total_allocated_hours=resource_data["allocated_hours"],
+            available_hours=resource_data["available_hours"],
+            utilization_percent=min(utilization, 100),  # Cap at 100%
+            tasks=resource_data["tasks"]
+        ))
+    
+    return ProjectResource(
+        project_id=project_id,
+        project_name=project["name"],
+        total_hours_required=total_hours_required,
+        total_hours_allocated=total_hours_allocated,
+        resources=resources
+    )
+
+@api_router.get("/resources/overview")
+async def get_resources_overview():
+    users = await db.users.find().to_list(1000)
+    tasks = await db.tasks.find({"assigned_to": {"$ne": None}}).to_list(1000)
+    
+    resource_summary = []
+    
+    for user in users:
+        user_tasks = [t for t in tasks if t.get("assigned_to") == user["id"]]
+        total_hours = sum(t.get("estimated_hours", 8) for t in user_tasks)
+        available_hours = 40  # Default 40 hours per week
+        
+        resource_summary.append({
+            "user_id": user["id"],
+            "name": user["name"],
+            "role": user["role"],
+            "discipline": user.get("discipline", "General"),
+            "allocated_hours": total_hours,
+            "available_hours": available_hours,
+            "utilization_percent": min((total_hours / available_hours) * 100, 100),
+            "active_tasks": len([t for t in user_tasks if t.get("status") != "done"])
+        })
+    
+    return {"resources": resource_summary}
+
 # Include the router in the main app
 app.include_router(api_router)
 
