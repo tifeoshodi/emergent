@@ -232,3 +232,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Completed comprehensive testing of the EPC project management backend. All endpoints are working correctly except for the API health check endpoint (GET /api/). The API router is set up with prefix /api but there's no root endpoint defined. This can be fixed by adding a simple root endpoint to the API router."
+  - agent: "testing"
+    message: "Fixed the API health check issue by adding a root endpoint to the API router. All backend endpoints are now working correctly. The EPC project management backend successfully supports user roles, project management, and task management with proper filtering and status updates."
