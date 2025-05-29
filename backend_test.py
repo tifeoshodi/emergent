@@ -264,28 +264,85 @@ def get_task_data():
     if not engineers:
         engineers = created_users  # Use all users if no engineers found
     
-    due_date = (datetime.now() + timedelta(days=30)).isoformat()
+    now = datetime.now()
     
     tasks = []
     
-    # Project-specific tasks
+    # Project-specific tasks with Gantt chart data
     for i, project in enumerate(created_projects):
-        for j in range(3):  # 3 tasks per project
+        # Create a sequence of tasks with dependencies for Gantt chart
+        start_date = now
+        
+        # First task is a milestone (project kickoff)
+        kickoff_task = {
+            "title": f"Project Kickoff - {project['name']}",
+            "description": f"Initial kickoff meeting for {project['name']}",
+            "priority": "high",
+            "assigned_to": engineers[0]["id"],
+            "project_id": project["id"],
+            "due_date": start_date.isoformat(),
+            "estimated_hours": 8.0,
+            "start_date": start_date.isoformat(),
+            "end_date": start_date.isoformat(),
+            "duration_days": 1.0,
+            "is_milestone": True,
+            "predecessor_tasks": [],
+            "required_resources": [engineers[0]["id"]],
+            "tags": ["kickoff", "milestone"]
+        }
+        tasks.append(kickoff_task)
+        
+        # Add regular tasks with dependencies
+        last_task_id = None
+        for j in range(3):
             engineer_idx = (i + j) % len(engineers)
-            tasks.append({
+            task_start = start_date + timedelta(days=j*5 + 1)
+            task_duration = (j+1) * 5  # 5, 10, 15 days
+            task_end = task_start + timedelta(days=task_duration)
+            
+            task = {
                 "title": f"Task {j+1} for {project['name']}",
                 "description": f"This is a test task for project {project['name']}",
                 "priority": ["low", "medium", "high", "critical"][j % 4],
                 "assigned_to": engineers[engineer_idx]["id"],
                 "project_id": project["id"],
-                "due_date": due_date,
+                "due_date": task_end.isoformat(),
                 "estimated_hours": 40.0,
+                "start_date": task_start.isoformat(),
+                "end_date": task_end.isoformat(),
+                "duration_days": float(task_duration),
+                "is_milestone": False,
+                "predecessor_tasks": [last_task_id] if last_task_id else [],
+                "required_resources": [engineers[engineer_idx]["id"]],
                 "tags": ["test", f"project-{i}", f"priority-{j%4}"]
-            })
+            }
+            tasks.append(task)
+            last_task_id = None  # Will be set after task creation
+        
+        # Final milestone (project completion)
+        final_date = start_date + timedelta(days=20)
+        completion_task = {
+            "title": f"Project Completion - {project['name']}",
+            "description": f"Final delivery for {project['name']}",
+            "priority": "critical",
+            "assigned_to": engineers[0]["id"],
+            "project_id": project["id"],
+            "due_date": final_date.isoformat(),
+            "estimated_hours": 8.0,
+            "start_date": final_date.isoformat(),
+            "end_date": final_date.isoformat(),
+            "duration_days": 1.0,
+            "is_milestone": True,
+            "predecessor_tasks": [last_task_id] if last_task_id else [],
+            "required_resources": [engineers[0]["id"]],
+            "tags": ["completion", "milestone"]
+        }
+        tasks.append(completion_task)
     
     # Independent tasks (not associated with any project)
     for i in range(3):
         engineer_idx = i % len(engineers)
+        due_date = (now + timedelta(days=15)).isoformat()
         tasks.append({
             "title": f"Independent Task {i+1}",
             "description": f"This is an independent test task not associated with any project",
