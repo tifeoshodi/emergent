@@ -43,6 +43,24 @@ const ClockIcon = ({ className }) => (
   </svg>
 );
 
+const ChartIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
+
+const ResourceIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+  </svg>
+);
+
+const MilestoneIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+  </svg>
+);
+
 // Priority Badge Component
 const PriorityBadge = ({ priority }) => {
   const getColorClass = (priority) => {
@@ -83,6 +101,20 @@ const StatusBadge = ({ status }) => {
     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getColorClass(status)}`}>
       {status.replace('_', ' ').toUpperCase()}
     </span>
+  );
+};
+
+// Progress Bar Component
+const ProgressBar = ({ progress, className = "" }) => {
+  const percentage = Math.min(Math.max(progress || 0, 0), 100);
+  
+  return (
+    <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
+      <div 
+        className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+        style={{ width: `${percentage}%` }}
+      />
+    </div>
   );
 };
 
@@ -132,6 +164,16 @@ const TaskCard = ({ task, users, onStatusChange }) => {
             <span>{task.estimated_hours}h estimated</span>
           </div>
         )}
+
+        {task.progress_percent !== undefined && (
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-sm text-gray-600">
+              <span>Progress</span>
+              <span>{task.progress_percent}%</span>
+            </div>
+            <ProgressBar progress={task.progress_percent} />
+          </div>
+        )}
       </div>
 
       {/* Status Change Buttons */}
@@ -160,6 +202,248 @@ const TaskCard = ({ task, users, onStatusChange }) => {
             Done
           </button>
         )}
+      </div>
+    </div>
+  );
+};
+
+// Gantt Chart Component
+const GanttChart = ({ ganttData, users, onProgressUpdate }) => {
+  if (!ganttData || !ganttData.tasks || ganttData.tasks.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <ChartIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Gantt Data</h3>
+        <p className="text-gray-600">Tasks need start and end dates to display in Gantt chart</p>
+      </div>
+    );
+  }
+
+  const startDate = new Date(ganttData.project_start);
+  const endDate = new Date(ganttData.project_end);
+  const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) || 1;
+
+  const getTaskPosition = (task) => {
+    const taskStart = new Date(task.start_date);
+    const taskEnd = new Date(task.end_date);
+    const startOffset = Math.ceil((taskStart - startDate) / (1000 * 60 * 60 * 24));
+    const duration = Math.ceil((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) || 1;
+    
+    return {
+      left: `${(startOffset / totalDays) * 100}%`,
+      width: `${(duration / totalDays) * 100}%`
+    };
+  };
+
+  const getTaskColor = (task) => {
+    if (task.is_milestone) return 'bg-yellow-500';
+    if (ganttData.critical_path?.includes(task.id)) return 'bg-red-500';
+    switch (task.priority) {
+      case 'critical': return 'bg-red-600';
+      case 'high': return 'bg-orange-500';
+      case 'medium': return 'bg-blue-500';
+      case 'low': return 'bg-gray-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Project Gantt Chart</h3>
+            <p className="text-sm text-gray-600">
+              {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()} ({totalDays} days)
+            </p>
+          </div>
+          <div className="flex items-center space-x-4 text-sm">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-red-500 rounded mr-2"></div>
+              <span>Critical Path</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-yellow-500 rounded mr-2"></div>
+              <span>Milestone</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-full">
+          {/* Timeline Header */}
+          <div className="bg-gray-50 border-b border-gray-200 p-4">
+            <div className="flex">
+              <div className="w-64 flex-shrink-0"></div>
+              <div className="flex-1 relative h-8">
+                {Array.from({ length: Math.min(totalDays, 30) }, (_, i) => {
+                  const date = new Date(startDate);
+                  date.setDate(date.getDate() + Math.floor((i / 30) * totalDays));
+                  return (
+                    <div
+                      key={i}
+                      className="absolute text-xs text-gray-600"
+                      style={{ left: `${(i / 30) * 100}%` }}
+                    >
+                      {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Tasks */}
+          <div className="divide-y divide-gray-200">
+            {ganttData.tasks.map((task, index) => {
+              const assignedUser = users.find(user => user.id === task.assigned_to);
+              const position = getTaskPosition(task);
+              
+              return (
+                <div key={task.id} className="flex items-center p-4 hover:bg-gray-50">
+                  {/* Task Info */}
+                  <div className="w-64 flex-shrink-0 pr-4">
+                    <div className="flex items-center">
+                      {task.is_milestone ? (
+                        <MilestoneIcon className="h-4 w-4 text-yellow-600 mr-2" />
+                      ) : (
+                        <TaskIcon className="h-4 w-4 text-gray-600 mr-2" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+                        {assignedUser && (
+                          <p className="text-xs text-gray-600">{assignedUser.name}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Gantt Bar */}
+                  <div className="flex-1 relative h-8">
+                    <div
+                      className={`absolute h-6 rounded ${getTaskColor(task)} flex items-center px-2`}
+                      style={position}
+                    >
+                      <div className="text-white text-xs font-medium truncate">
+                        {task.progress_percent}%
+                      </div>
+                      {/* Progress overlay */}
+                      <div 
+                        className="absolute top-0 left-0 h-full bg-green-400 opacity-50 rounded"
+                        style={{ width: `${task.progress_percent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Duration */}
+                  <div className="w-20 text-right text-sm text-gray-600">
+                    {task.duration_days}d
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Resource Management Component
+const ResourceManagement = ({ resources, onResourceClick }) => {
+  if (!resources || !resources.resources) {
+    return (
+      <div className="text-center py-12">
+        <ResourceIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Resource Data</h3>
+        <p className="text-gray-600">Resource allocation will appear here when tasks are assigned</p>
+      </div>
+    );
+  }
+
+  const getUtilizationColor = (utilization) => {
+    if (utilization > 100) return 'text-red-600 bg-red-100';
+    if (utilization > 80) return 'text-orange-600 bg-orange-100';
+    if (utilization > 60) return 'text-yellow-600 bg-yellow-100';
+    return 'text-green-600 bg-green-100';
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Resource Allocation</h3>
+            <p className="text-sm text-gray-600">
+              {resources.total_hours_allocated}h allocated of {resources.total_hours_required}h required
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-purple-600">
+              {Math.round((resources.total_hours_allocated / resources.total_hours_required) * 100) || 0}%
+            </p>
+            <p className="text-sm text-gray-600">Allocated</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="space-y-4">
+          {resources.resources.map(resource => (
+            <div
+              key={resource.user_id}
+              className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => onResourceClick && onResourceClick(resource)}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <UserIcon className="h-8 w-8 text-gray-600 mr-3" />
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{resource.user_name}</h4>
+                    <p className="text-sm text-gray-600">{resource.discipline}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getUtilizationColor(resource.utilization_percent)}`}>
+                    {Math.round(resource.utilization_percent)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Allocated Hours</span>
+                  <span className="font-medium">{resource.total_allocated_hours}h</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Available Hours</span>
+                  <span className="font-medium">{resource.available_hours}h</span>
+                </div>
+                <ProgressBar 
+                  progress={resource.utilization_percent} 
+                  className="mt-2"
+                />
+              </div>
+
+              <div className="mt-3">
+                <p className="text-sm text-gray-600 mb-2">Active Tasks: {resource.tasks.length}</p>
+                <div className="flex flex-wrap gap-1">
+                  {resource.tasks.slice(0, 3).map(task => (
+                    <span key={task.id} className="px-2 py-1 bg-gray-100 text-xs rounded">
+                      {task.title}
+                    </span>
+                  ))}
+                  {resource.tasks.length > 3 && (
+                    <span className="px-2 py-1 bg-gray-100 text-xs rounded">
+                      +{resource.tasks.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -201,6 +485,16 @@ const KanbanBoard = ({ kanbanData, users, onStatusChange }) => {
                   <div className="flex items-center text-xs text-gray-600 mb-3">
                     <CalendarIcon className="h-3 w-3 mr-1" />
                     <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                  </div>
+                )}
+
+                {task.progress_percent !== undefined && (
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center text-xs text-gray-600 mb-1">
+                      <span>Progress</span>
+                      <span>{task.progress_percent}%</span>
+                    </div>
+                    <ProgressBar progress={task.progress_percent} />
                   </div>
                 )}
 
@@ -282,9 +576,15 @@ const Components = {
   UserIcon,
   CalendarIcon,
   ClockIcon,
+  ChartIcon,
+  ResourceIcon,
+  MilestoneIcon,
   PriorityBadge,
   StatusBadge,
+  ProgressBar,
   TaskCard,
+  GanttChart,
+  ResourceManagement,
   KanbanBoard
 };
 
