@@ -107,15 +107,18 @@ user_problem_statement: "Test the EPC project management backend I just built: 1
 backend:
   - task: "API Health Check"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "API health check endpoint at GET /api/ returns 404. The API router is set up with prefix /api but there's no root endpoint defined."
+      - working: true
+        agent: "testing"
+        comment: "Fixed the API health check by adding a root endpoint to the API router. GET /api/ now returns a 200 OK response with status and message."
 
   - task: "User Management"
     implemented: true
