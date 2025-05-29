@@ -148,6 +148,14 @@ class TaskUpdate(BaseModel):
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
+    # Gantt fields
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    duration_days: Optional[float] = None
+    predecessor_tasks: Optional[List[str]] = None
+    is_milestone: Optional[bool] = None
+    progress_percent: Optional[float] = None
+    required_resources: Optional[List[str]] = None
     tags: Optional[List[str]] = None
 
 # Dashboard stats model
