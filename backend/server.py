@@ -109,6 +109,15 @@ class Task(BaseModel):
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
+    # Gantt Chart fields
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    duration_days: Optional[float] = None
+    predecessor_tasks: List[str] = []  # List of task IDs this task depends on
+    is_milestone: bool = False
+    progress_percent: Optional[float] = 0.0  # 0-100
+    # Resource allocation
+    required_resources: List[str] = []  # List of user IDs required for this task
     tags: List[str] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
