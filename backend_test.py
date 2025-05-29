@@ -366,17 +366,47 @@ def test_create_tasks():
         log_test("Create Tasks", False, "Not enough users or projects created to test with")
         return
     
+    # Group tasks by project for proper dependency tracking
+    tasks_by_project = {}
+    for task in tasks_data:
+        project_id = task.get("project_id")
+        if project_id not in tasks_by_project:
+            tasks_by_project[project_id] = []
+        tasks_by_project[project_id].append(task)
+    
+    # Create tasks project by project to handle dependencies
+    for project_id, project_tasks in tasks_by_project.items():
+        last_task_id = None
+        for task_data in project_tasks:
+            # Update predecessor task ID if needed
+            if task_data.get("predecessor_tasks") == [None] and last_task_id:
+                task_data["predecessor_tasks"] = [last_task_id]
+            
+            try:
+                response = requests.post(f"{BACKEND_URL}/tasks", json=task_data)
+                if response.status_code == 200:
+                    task = response.json()
+                    created_tasks.append(task)
+                    last_task_id = task["id"]  # Store for dependency
+                    log_test(f"Create Task: {task_data['title']}", True, f"Created task with ID: {task['id']}")
+                else:
+                    log_test(f"Create Task: {task_data['title']}", False, f"Status code: {response.status_code}, Response: {response.text}")
+            except Exception as e:
+                log_test(f"Create Task: {task_data['title']}", False, f"Exception: {str(e)}")
+    
+    # Create independent tasks
     for task_data in tasks_data:
-        try:
-            response = requests.post(f"{BACKEND_URL}/tasks", json=task_data)
-            if response.status_code == 200:
-                task = response.json()
-                created_tasks.append(task)
-                log_test(f"Create Task: {task_data['title']}", True, f"Created task with ID: {task['id']}")
-            else:
-                log_test(f"Create Task: {task_data['title']}", False, f"Status code: {response.status_code}, Response: {response.text}")
-        except Exception as e:
-            log_test(f"Create Task: {task_data['title']}", False, f"Exception: {str(e)}")
+        if task_data.get("project_id") is None:
+            try:
+                response = requests.post(f"{BACKEND_URL}/tasks", json=task_data)
+                if response.status_code == 200:
+                    task = response.json()
+                    created_tasks.append(task)
+                    log_test(f"Create Task: {task_data['title']}", True, f"Created task with ID: {task['id']}")
+                else:
+                    log_test(f"Create Task: {task_data['title']}", False, f"Status code: {response.status_code}, Response: {response.text}")
+            except Exception as e:
+                log_test(f"Create Task: {task_data['title']}", False, f"Exception: {str(e)}")
 
 def test_get_tasks():
     """Test getting all tasks"""
