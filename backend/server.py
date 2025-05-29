@@ -168,6 +168,43 @@ class DashboardStats(BaseModel):
     overdue_tasks: int
     my_tasks: int
 
+# Gantt Chart models
+class GanttTask(BaseModel):
+    id: str
+    title: str
+    start_date: datetime
+    end_date: datetime
+    duration_days: float
+    progress_percent: float
+    assigned_to: Optional[str] = None
+    predecessor_tasks: List[str] = []
+    is_milestone: bool = False
+    status: TaskStatus
+    priority: TaskPriority
+
+class GanttData(BaseModel):
+    tasks: List[GanttTask]
+    project_start: datetime
+    project_end: datetime
+    critical_path: List[str] = []  # Task IDs on critical path
+
+# Resource allocation models
+class ResourceAllocation(BaseModel):
+    user_id: str
+    user_name: str
+    discipline: str
+    total_allocated_hours: float
+    available_hours: float
+    utilization_percent: float
+    tasks: List[dict]
+
+class ProjectResource(BaseModel):
+    project_id: str
+    project_name: str
+    total_hours_required: float
+    total_hours_allocated: float
+    resources: List[ResourceAllocation]
+
 # User endpoints
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
