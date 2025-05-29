@@ -25,6 +25,11 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Root endpoint for API health check
+@api_router.get("/")
+async def api_health():
+    return {"status": "ok", "message": "EPC Project Management API is running"}
+
 # Enums
 class TaskStatus(str, Enum):
     TODO = "todo"
