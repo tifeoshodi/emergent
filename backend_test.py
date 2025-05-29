@@ -4,9 +4,22 @@ from datetime import datetime, timedelta
 import time
 import uuid
 import sys
+import os
 
-# Backend URL from frontend/.env
-BACKEND_URL = "https://526b0f27-3b4b-4c49-a6fe-78e71b675c83.preview.emergentagent.com/api"
+# Get Backend URL from frontend/.env
+def get_backend_url():
+    try:
+        with open('/app/frontend/.env', 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.strip().split('=')[1].strip('"\'') + '/api'
+    except Exception as e:
+        print(f"Error reading .env file: {e}")
+        # Fallback to the existing URL if we can't read the .env file
+        return "https://526b0f27-3b4b-4c49-a6fe-78e71b675c83.preview.emergentagent.com/api"
+
+BACKEND_URL = get_backend_url()
+print(f"Using backend URL: {BACKEND_URL}")
 
 # Test results tracking
 test_results = {
