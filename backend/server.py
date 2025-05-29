@@ -66,6 +66,8 @@ class User(BaseModel):
     email: str
     role: UserRole
     discipline: Optional[str] = None  # e.g., "Mechanical", "Electrical", "Process"
+    hourly_rate: Optional[float] = None  # For resource costing
+    availability: Optional[float] = 1.0  # 0.0 to 1.0, default full availability
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserCreate(BaseModel):
