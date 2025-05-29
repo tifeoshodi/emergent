@@ -130,6 +130,13 @@ class TaskCreate(BaseModel):
     project_id: Optional[str] = None
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
+    # Gantt fields
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    duration_days: Optional[float] = None
+    predecessor_tasks: List[str] = []
+    is_milestone: bool = False
+    required_resources: List[str] = []
     tags: List[str] = []
 
 class TaskUpdate(BaseModel):
