@@ -548,8 +548,10 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
-  stuck_tasks: []
+  current_focus: 
+    - "User Data in Resource Management"
+  stuck_tasks:
+    - "User Data in Resource Management"
   test_all: false
   test_priority: "high_first"
 
