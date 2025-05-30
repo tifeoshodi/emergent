@@ -522,7 +522,23 @@ const ResourceManagement = ({ resources, onResourceClick }) => {
 };
 
 // Kanban Board Component
-const KanbanBoard = ({ kanbanData, users, onStatusChange }) => {
+const KanbanBoard = ({ kanbanData, users, onStatusChange, onDelete }) => {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+
+  const handleDeleteClick = (task) => {
+    setTaskToDelete(task);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (taskToDelete && onDelete) {
+      onDelete(taskToDelete.id);
+    }
+    setShowDeleteModal(false);
+    setTaskToDelete(null);
+  };
+
   const columns = [
     { key: 'todo', title: 'To Do', count: kanbanData.todo.length },
     { key: 'in_progress', title: 'In Progress', count: kanbanData.in_progress.length },
@@ -531,111 +547,133 @@ const KanbanBoard = ({ kanbanData, users, onStatusChange }) => {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {columns.map(column => (
-        <div key={column.key} className="kanban-column">
-          <div className="kanban-column-header">
-            {column.title} ({column.count})
-          </div>
-          <div className="space-y-3">
-            {kanbanData[column.key].map(task => (
-              <div key={task.id} className="kanban-task">
-                <h5 className="font-semibold text-gray-900 mb-2">{task.title}</h5>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{task.description}</p>
-                
-                <div className="flex items-center justify-between mb-3">
-                  <PriorityBadge priority={task.priority} />
-                  {task.assigned_to && (
-                    <div className="flex items-center text-xs text-gray-600">
-                      <UserIcon className="h-3 w-3 mr-1" />
-                      <span>{users.find(u => u.id === task.assigned_to)?.name || 'Unknown'}</span>
-                    </div>
-                  )}
-                </div>
-
-                {task.due_date && (
-                  <div className="flex items-center text-xs text-gray-600 mb-3">
-                    <CalendarIcon className="h-3 w-3 mr-1" />
-                    <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
-                  </div>
-                )}
-
-                {task.progress_percent !== undefined && (
-                  <div className="mb-3">
-                    <div className="flex justify-between items-center text-xs text-gray-600 mb-1">
-                      <span>Progress</span>
-                      <span>{task.progress_percent}%</span>
-                    </div>
-                    <ProgressBar progress={task.progress_percent} />
-                  </div>
-                )}
-
-                {/* Status change buttons */}
-                <div className="flex gap-1">
-                  {column.key !== 'todo' && (
-                    <button
-                      onClick={() => onStatusChange(task.id, 'todo')}
-                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-2 rounded text-xs transition-colors"
-                    >
-                      ← To Do
-                    </button>
-                  )}
-                  {column.key === 'todo' && (
-                    <button
-                      onClick={() => onStatusChange(task.id, 'in_progress')}
-                      className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded text-xs transition-colors"
-                    >
-                      Start →
-                    </button>
-                  )}
-                  {column.key === 'in_progress' && (
-                    <>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {columns.map(column => (
+          <div key={column.key} className="kanban-column">
+            <div className="kanban-column-header">
+              {column.title} ({column.count})
+            </div>
+            <div className="space-y-3">
+              {kanbanData[column.key].map(task => (
+                <div key={task.id} className="kanban-task group">
+                  <div className="flex justify-between items-start mb-2">
+                    <h5 className="font-semibold text-gray-900 flex-1">{task.title}</h5>
+                    {onDelete && (
                       <button
-                        onClick={() => onStatusChange(task.id, 'review')}
-                        className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs transition-colors"
+                        onClick={() => handleDeleteClick(task)}
+                        className="text-gray-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete Task"
                       >
-                        Review →
+                        <DeleteIcon className="h-4 w-4" />
                       </button>
-                    </>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{task.description}</p>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <PriorityBadge priority={task.priority} />
+                    {task.assigned_to && (
+                      <div className="flex items-center text-xs text-gray-600">
+                        <UserIcon className="h-3 w-3 mr-1" />
+                        <span>{users.find(u => u.id === task.assigned_to)?.name || 'Unknown'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {task.due_date && (
+                    <div className="flex items-center text-xs text-gray-600 mb-3">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                    </div>
                   )}
-                  {column.key === 'review' && (
-                    <>
+
+                  {task.progress_percent !== undefined && (
+                    <div className="mb-3">
+                      <div className="flex justify-between items-center text-xs text-gray-600 mb-1">
+                        <span>Progress</span>
+                        <span>{task.progress_percent}%</span>
+                      </div>
+                      <ProgressBar progress={task.progress_percent} />
+                    </div>
+                  )}
+
+                  {/* Status change buttons */}
+                  <div className="flex gap-1">
+                    {column.key !== 'todo' && (
+                      <button
+                        onClick={() => onStatusChange(task.id, 'todo')}
+                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-2 rounded text-xs transition-colors"
+                      >
+                        ← To Do
+                      </button>
+                    )}
+                    {column.key === 'todo' && (
                       <button
                         onClick={() => onStatusChange(task.id, 'in_progress')}
                         className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded text-xs transition-colors"
                       >
-                        ← Back
+                        Start →
                       </button>
+                    )}
+                    {column.key === 'in_progress' && (
+                      <>
+                        <button
+                          onClick={() => onStatusChange(task.id, 'review')}
+                          className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs transition-colors"
+                        >
+                          Review →
+                        </button>
+                      </>
+                    )}
+                    {column.key === 'review' && (
+                      <>
+                        <button
+                          onClick={() => onStatusChange(task.id, 'in_progress')}
+                          className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded text-xs transition-colors"
+                        >
+                          ← Back
+                        </button>
+                        <button
+                          onClick={() => onStatusChange(task.id, 'done')}
+                          className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-1 px-2 rounded text-xs transition-colors"
+                        >
+                          Done →
+                        </button>
+                      </>
+                    )}
+                    {column.key === 'done' && (
                       <button
-                        onClick={() => onStatusChange(task.id, 'done')}
-                        className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-1 px-2 rounded text-xs transition-colors"
+                        onClick={() => onStatusChange(task.id, 'review')}
+                        className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs transition-colors"
                       >
-                        Done →
+                        ← Review
                       </button>
-                    </>
-                  )}
-                  {column.key === 'done' && (
-                    <button
-                      onClick={() => onStatusChange(task.id, 'review')}
-                      className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs transition-colors"
-                    >
-                      ← Review
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {kanbanData[column.key].length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <TaskIcon className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">No tasks</p>
-              </div>
-            )}
+              ))}
+              
+              {kanbanData[column.key].length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <TaskIcon className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                  <p className="text-sm">No tasks</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Task"
+        message={taskToDelete ? `Are you sure you want to delete "${taskToDelete.title}"? This action cannot be undone.` : ''}
+      />
+    </>
   );
 };
 
