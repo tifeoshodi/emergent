@@ -708,6 +708,213 @@ async def get_resources_overview():
     
     return {"resources": resource_summary}
 
+# Epic endpoints
+@api_router.post("/epics", response_model=Epic)
+async def create_epic(epic: EpicCreate):
+    # Verify project exists
+    project = await db.projects.find_one({"id": epic.project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    epic_dict = epic.dict()
+    epic_dict["created_by"] = "default_user"  # TODO: Get from auth
+    epic_obj = Epic(**epic_dict)
+    await db.epics.insert_one(epic_obj.dict())
+    return epic_obj
+
+@api_router.get("/epics", response_model=List[Epic])
+async def get_epics(project_id: Optional[str] = None):
+    query = {}
+    if project_id:
+        query["project_id"] = project_id
+    
+    epics = await db.epics.find(query).to_list(1000)
+    return [Epic(**epic) for epic in epics]
+
+@api_router.get("/epics/{epic_id}", response_model=Epic)
+async def get_epic(epic_id: str):
+    epic = await db.epics.find_one({"id": epic_id})
+    if not epic:
+        raise HTTPException(status_code=404, detail="Epic not found")
+    return Epic(**epic)
+
+@api_router.put("/epics/{epic_id}", response_model=Epic)
+async def update_epic(epic_id: str, epic_update: dict):
+    epic = await db.epics.find_one({"id": epic_id})
+    if not epic:
+        raise HTTPException(status_code=404, detail="Epic not found")
+    
+    update_data = {k: v for k, v in epic_update.items() if v is not None}
+    update_data["updated_at"] = datetime.utcnow()
+    
+    await db.epics.update_one({"id": epic_id}, {"$set": update_data})
+    
+    updated_epic = await db.epics.find_one({"id": epic_id})
+    return Epic(**updated_epic)
+
+@api_router.delete("/epics/{epic_id}")
+async def delete_epic(epic_id: str):
+    # Check if epic has tasks
+    epic_tasks = await db.tasks.count_documents({"epic_id": epic_id})
+    if epic_tasks > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete epic. Epic has {epic_tasks} task(s). Please move or delete these tasks first.")
+    
+    result = await db.epics.delete_one({"id": epic_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Epic not found")
+    return {"message": "Epic deleted successfully"}
+
+# Sprint endpoints
+@api_router.post("/sprints", response_model=Sprint)
+async def create_sprint(sprint: SprintCreate):
+    # Verify project exists
+    project = await db.projects.find_one({"id": sprint.project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    sprint_dict = sprint.dict()
+    sprint_dict["created_by"] = "default_user"  # TODO: Get from auth
+    sprint_obj = Sprint(**sprint_dict)
+    await db.sprints.insert_one(sprint_obj.dict())
+    return sprint_obj
+
+@api_router.get("/sprints", response_model=List[Sprint])
+async def get_sprints(project_id: Optional[str] = None, status: Optional[SprintStatus] = None):
+    query = {}
+    if project_id:
+        query["project_id"] = project_id
+    if status:
+        query["status"] = status
+    
+    sprints = await db.sprints.find(query).to_list(1000)
+    return [Sprint(**sprint) for sprint in sprints]
+
+@api_router.get("/sprints/{sprint_id}", response_model=Sprint)
+async def get_sprint(sprint_id: str):
+    sprint = await db.sprints.find_one({"id": sprint_id})
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    return Sprint(**sprint)
+
+@api_router.put("/sprints/{sprint_id}", response_model=Sprint)
+async def update_sprint(sprint_id: str, sprint_update: dict):
+    sprint = await db.sprints.find_one({"id": sprint_id})
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    
+    update_data = {k: v for k, v in sprint_update.items() if v is not None}
+    update_data["updated_at"] = datetime.utcnow()
+    
+    await db.sprints.update_one({"id": sprint_id}, {"$set": update_data})
+    
+    updated_sprint = await db.sprints.find_one({"id": sprint_id})
+    return Sprint(**updated_sprint)
+
+@api_router.delete("/sprints/{sprint_id}")
+async def delete_sprint(sprint_id: str):
+    # Remove sprint assignment from all tasks
+    await db.tasks.update_many({"sprint_id": sprint_id}, {"$unset": {"sprint_id": ""}})
+    
+    result = await db.sprints.delete_one({"id": sprint_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    return {"message": "Sprint deleted successfully and tasks unassigned"}
+
+# Sprint Board (Kanban with sprint filtering)
+@api_router.get("/sprints/{sprint_id}/board")
+async def get_sprint_board(sprint_id: str):
+    sprint = await db.sprints.find_one({"id": sprint_id})
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    
+    tasks = await db.tasks.find({"sprint_id": sprint_id}).to_list(1000)
+    
+    sprint_board = {
+        "todo": [],
+        "in_progress": [],
+        "review": [],
+        "done": []
+    }
+    
+    for task in tasks:
+        task_obj = Task(**task)
+        sprint_board[task_obj.status.value].append(task_obj.dict())
+    
+    return {
+        "sprint": Sprint(**sprint).dict(),
+        "board": sprint_board
+    }
+
+# Sprint analytics
+@api_router.get("/sprints/{sprint_id}/analytics")
+async def get_sprint_analytics(sprint_id: str):
+    sprint = await db.sprints.find_one({"id": sprint_id})
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    
+    tasks = await db.tasks.find({"sprint_id": sprint_id}).to_list(1000)
+    
+    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
+    completed_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points") and task.get("status") == "done")
+    
+    total_tasks = len(tasks)
+    completed_tasks = len([task for task in tasks if task.get("status") == "done"])
+    
+    # Calculate days elapsed and remaining
+    start_date = datetime.fromisoformat(sprint["start_date"].replace('Z', '+00:00'))
+    end_date = datetime.fromisoformat(sprint["end_date"].replace('Z', '+00:00'))
+    current_date = datetime.utcnow()
+    
+    total_days = (end_date - start_date).days
+    elapsed_days = max(0, (current_date - start_date).days)
+    remaining_days = max(0, (end_date - current_date).days)
+    
+    return {
+        "sprint_id": sprint_id,
+        "total_story_points": total_story_points,
+        "completed_story_points": completed_story_points,
+        "remaining_story_points": total_story_points - completed_story_points,
+        "completion_percentage": (completed_story_points / total_story_points * 100) if total_story_points > 0 else 0,
+        "total_tasks": total_tasks,
+        "completed_tasks": completed_tasks,
+        "remaining_tasks": total_tasks - completed_tasks,
+        "task_completion_percentage": (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0,
+        "total_days": total_days,
+        "elapsed_days": elapsed_days,
+        "remaining_days": remaining_days,
+        "burndown_data": calculate_burndown_data(tasks, start_date, end_date)
+    }
+
+def calculate_burndown_data(tasks, start_date, end_date):
+    """Calculate burndown chart data"""
+    # Simplified burndown calculation
+    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
+    
+    # Generate ideal burndown line
+    total_days = (end_date - start_date).days
+    if total_days <= 0:
+        return []
+    
+    burndown_data = []
+    daily_burndown = total_story_points / total_days if total_days > 0 else 0
+    
+    for day in range(total_days + 1):
+        current_date = start_date + timedelta(days=day)
+        ideal_remaining = max(0, total_story_points - (day * daily_burndown))
+        
+        # Calculate actual remaining (simplified - in real app, would track daily completion)
+        completed_points = sum(task.get("story_points", 0) for task in tasks 
+                             if task.get("story_points") and task.get("status") == "done")
+        actual_remaining = total_story_points - completed_points
+        
+        burndown_data.append({
+            "date": current_date.isoformat(),
+            "ideal_remaining": ideal_remaining,
+            "actual_remaining": actual_remaining if current_date <= datetime.utcnow() else None
+        })
+    
+    return burndown_data
+
 # Include the router in the main app
 app.include_router(api_router)
 
