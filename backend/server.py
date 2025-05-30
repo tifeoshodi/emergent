@@ -225,6 +225,21 @@ async def get_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return User(**user)
 
+@api_router.put("/users/{user_id}", response_model=User)
+async def update_user(user_id: str, user_update: dict):
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Remove fields that shouldn't be updated or are empty
+    update_data = {k: v for k, v in user_update.items() if v is not None and v != ''}
+    
+    if update_data:
+        await db.users.update_one({"id": user_id}, {"$set": update_data})
+    
+    updated_user = await db.users.find_one({"id": user_id})
+    return User(**updated_user)
+
 # Project endpoints
 @api_router.post("/projects", response_model=Project)
 async def create_project(project: ProjectCreate):
