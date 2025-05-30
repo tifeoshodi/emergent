@@ -1077,28 +1077,45 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <h2 className="text-xl font-bold text-purple-600">EPC Project Manager</h2>
+              <Link to="/" className="flex items-center">
+                <h2 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                  PMFusion
+                </h2>
+                <span className="ml-2 text-xs text-gray-500 bg-purple-100 px-2 py-1 rounded-full">EPC</span>
+              </Link>
             </div>
             <div className="ml-10 flex items-baseline space-x-4">
               <button
                 onClick={() => setCurrentPage('dashboard')}
                 className={`nav-item ${currentPage === 'dashboard' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
+                <Components.ChartIcon className="h-4 w-4 inline mr-1" />
                 Dashboard
               </button>
               <button
                 onClick={() => setCurrentPage('tasks')}
                 className={`nav-item ${currentPage === 'tasks' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
+                <Components.TaskIcon className="h-4 w-4 inline mr-1" />
                 Tasks
               </button>
               <button
                 onClick={() => setCurrentPage('projects')}
                 className={`nav-item ${currentPage === 'projects' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
+                <Components.ProjectIcon className="h-4 w-4 inline mr-1" />
                 Projects
               </button>
             </div>
+          </div>
+          <div className="flex items-center">
+            <Link
+              to="/"
+              className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+            >
+              <Components.UserIcon className="h-4 w-4 inline mr-1" />
+              Home
+            </Link>
           </div>
         </div>
       </div>
