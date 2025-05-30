@@ -1615,6 +1615,8 @@ function App() {
         return <ProjectManagement />;
       case 'dashboard':
         return <Dashboard />;
+      case 'users':
+        return <UserManagement />;
       default:
         return <HomePage />;
     }
@@ -1640,6 +1642,12 @@ function App() {
           <>
             <Navigation currentPage="projects" setCurrentPage={setCurrentPage} />
             <main><ProjectManagement /></main>
+          </>
+        } />
+        <Route path="/users" element={
+          <>
+            <Navigation currentPage="users" setCurrentPage={setCurrentPage} />
+            <main><UserManagement /></main>
           </>
         } />
       </Routes>
