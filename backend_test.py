@@ -56,43 +56,57 @@ users_data = [
         "name": "John Smith",
         "email": "john.smith@epc.com",
         "role": "project_manager",
-        "discipline": "Management"
+        "discipline": "Management",
+        "hourly_rate": 150.0,
+        "availability": 1.0
     },
     {
         "name": "Sarah Johnson",
         "email": "sarah.johnson@epc.com",
         "role": "engineering_manager",
-        "discipline": "Engineering"
+        "discipline": "Engineering",
+        "hourly_rate": 125.0,
+        "availability": 0.9
     },
     {
         "name": "Mike Chen",
         "email": "mike.chen@epc.com",
         "role": "senior_engineer_1",
-        "discipline": "Mechanical"
+        "discipline": "Mechanical",
+        "hourly_rate": 110.0,
+        "availability": 0.8
     },
     {
         "name": "Lisa Anderson",
         "email": "lisa.anderson@epc.com",
         "role": "senior_engineer_2",
-        "discipline": "Electrical"
+        "discipline": "Electrical",
+        "hourly_rate": 100.0,
+        "availability": 1.0
     },
     {
         "name": "Tom Wilson",
         "email": "tom.wilson@epc.com",
         "role": "intermediate_engineer",
-        "discipline": "Process"
+        "discipline": "Process",
+        "hourly_rate": 85.0,
+        "availability": 0.75
     },
     {
         "name": "Emma Davis",
         "email": "emma.davis@epc.com",
         "role": "junior_engineer",
-        "discipline": "Civil"
+        "discipline": "Civil",
+        "hourly_rate": 65.0,
+        "availability": 1.0
     },
     {
         "name": "David Brown",
         "email": "david.brown@epc.com",
         "role": "contractor",
-        "discipline": "Instrumentation"
+        "discipline": "Instrumentation",
+        "hourly_rate": 95.0,
+        "availability": 0.5
     }
 ]
 
