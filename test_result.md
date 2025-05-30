@@ -529,6 +529,18 @@ frontend:
         agent: "testing"
         comment: "Successfully tested the hourly_rate and availability fields for users. These fields are correctly stored and retrieved for all users. Creating new users with specific hourly_rate and availability values works as expected."
 
+  - task: "User Data in Resource Management"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "The GET /api/resources/overview endpoint returns a 500 Internal Server Error. This endpoint needs to be fixed to properly include user data in resource management. However, the GET /api/projects/{project_id}/resources endpoint works correctly and includes user disciplines in project resources."
+
   - task: "Epic Management"
     implemented: true
     working: true
