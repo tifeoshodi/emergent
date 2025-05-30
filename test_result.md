@@ -623,9 +623,11 @@ test_plan:
   current_focus: 
     - "Sprint Analytics"
     - "Agile Workflow Integration"
+    - "User Data in Resource Management"
   stuck_tasks:
     - "Sprint Analytics"
     - "Agile Workflow Integration"
+    - "User Data in Resource Management"
   test_all: false
   test_priority: "high_first"
 
