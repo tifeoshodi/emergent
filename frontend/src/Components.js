@@ -635,6 +635,7 @@ const DragDropKanbanBoard = ({ kanbanData, users, epics = [], sprints = [], onSt
 
     const newStatus = statusMap[destination.droppableId];
     if (newStatus && onStatusChange) {
+      // Call the status change handler which should update the backend and refresh data
       onStatusChange(draggableId, newStatus);
     }
 
