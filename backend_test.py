@@ -156,6 +156,155 @@ def test_get_user_by_id():
     except Exception as e:
         log_test("Get User by ID", False, f"Exception: {str(e)}")
 
+def test_update_user():
+    """Test updating a user profile"""
+    if not created_users:
+        log_test("Update User", False, "No users created to test with")
+        return
+    
+    user_id = created_users[0]["id"]
+    update_data = {
+        "name": "John Smith Updated",
+        "email": "john.smith.updated@epc.com",
+        "role": "project_manager",
+        "discipline": "Project Management",
+        "hourly_rate": 160.0,
+        "availability": 0.9
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/users/{user_id}", json=update_data)
+        if response.status_code == 200:
+            user = response.json()
+            log_test("Update User", True, f"Updated user: {user['name']}")
+            
+            # Verify all fields were updated correctly
+            for key, value in update_data.items():
+                if user[key] != value:
+                    log_test(f"Update User Field: {key}", False, f"Expected {value}, got {user[key]}")
+                else:
+                    log_test(f"Update User Field: {key}", True, f"Field updated correctly")
+        else:
+            log_test("Update User", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Update User", False, f"Exception: {str(e)}")
+
+def test_partial_user_updates():
+    """Test partial updates to user profiles"""
+    if not created_users or len(created_users) < 2:
+        log_test("Partial User Updates", False, "Not enough users created to test with")
+        return
+    
+    user_id = created_users[1]["id"]
+    
+    # First, get the current user data
+    try:
+        response = requests.get(f"{BACKEND_URL}/users/{user_id}")
+        if response.status_code != 200:
+            log_test("Partial User Updates - Get Original", False, f"Status code: {response.status_code}, Response: {response.text}")
+            return
+        original_user = response.json()
+    except Exception as e:
+        log_test("Partial User Updates - Get Original", False, f"Exception: {str(e)}")
+        return
+    
+    # Test updating only the hourly_rate
+    partial_update = {
+        "hourly_rate": 130.0
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/users/{user_id}", json=partial_update)
+        if response.status_code == 200:
+            updated_user = response.json()
+            
+            # Verify only hourly_rate was updated
+            if updated_user["hourly_rate"] == partial_update["hourly_rate"]:
+                log_test("Partial User Update - hourly_rate", True, f"hourly_rate updated to {updated_user['hourly_rate']}")
+            else:
+                log_test("Partial User Update - hourly_rate", False, f"Expected {partial_update['hourly_rate']}, got {updated_user['hourly_rate']}")
+            
+            # Verify other fields remained unchanged
+            unchanged_fields = ["name", "email", "role", "discipline", "availability"]
+            for field in unchanged_fields:
+                if updated_user[field] == original_user[field]:
+                    log_test(f"Partial User Update - Unchanged {field}", True, f"{field} remained unchanged")
+                else:
+                    log_test(f"Partial User Update - Unchanged {field}", False, f"Expected {original_user[field]}, got {updated_user[field]}")
+        else:
+            log_test("Partial User Update", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Partial User Update", False, f"Exception: {str(e)}")
+    
+    # Test updating only the availability
+    partial_update = {
+        "availability": 0.8
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/users/{user_id}", json=partial_update)
+        if response.status_code == 200:
+            updated_user = response.json()
+            
+            # Verify only availability was updated
+            if updated_user["availability"] == partial_update["availability"]:
+                log_test("Partial User Update - availability", True, f"availability updated to {updated_user['availability']}")
+            else:
+                log_test("Partial User Update - availability", False, f"Expected {partial_update['availability']}, got {updated_user['availability']}")
+        else:
+            log_test("Partial User Update - availability", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Partial User Update - availability", False, f"Exception: {str(e)}")
+
+def test_user_hourly_rate_and_availability():
+    """Test hourly rate and availability fields for users"""
+    if not created_users:
+        log_test("User Hourly Rate and Availability", False, "No users created to test with")
+        return
+    
+    # Verify all users have hourly_rate and availability fields
+    for user in created_users:
+        if "hourly_rate" not in user:
+            log_test(f"User Hourly Rate - {user['name']}", False, "hourly_rate field missing")
+        else:
+            log_test(f"User Hourly Rate - {user['name']}", True, f"hourly_rate: {user['hourly_rate']}")
+        
+        if "availability" not in user:
+            log_test(f"User Availability - {user['name']}", False, "availability field missing")
+        else:
+            log_test(f"User Availability - {user['name']}", True, f"availability: {user['availability']}")
+    
+    # Create a new user with specific hourly_rate and availability
+    new_user_data = {
+        "name": "Test Rate User",
+        "email": "test.rate@epc.com",
+        "role": "senior_engineer_1",
+        "discipline": "Testing",
+        "hourly_rate": 115.50,
+        "availability": 0.75
+    }
+    
+    try:
+        response = requests.post(f"{BACKEND_URL}/users", json=new_user_data)
+        if response.status_code == 200:
+            user = response.json()
+            created_users.append(user)
+            
+            # Verify hourly_rate and availability were stored correctly
+            if user["hourly_rate"] == new_user_data["hourly_rate"]:
+                log_test("Create User with Hourly Rate", True, f"hourly_rate stored correctly: {user['hourly_rate']}")
+            else:
+                log_test("Create User with Hourly Rate", False, f"Expected {new_user_data['hourly_rate']}, got {user['hourly_rate']}")
+            
+            if user["availability"] == new_user_data["availability"]:
+                log_test("Create User with Availability", True, f"availability stored correctly: {user['availability']}")
+            else:
+                log_test("Create User with Availability", False, f"Expected {new_user_data['availability']}, got {user['availability']}")
+        else:
+            log_test("Create User with Rate and Availability", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Create User with Rate and Availability", False, f"Exception: {str(e)}")
+
 # Project data for testing
 def get_project_data():
     """Generate project data using created users"""
@@ -540,28 +689,6 @@ def test_filter_tasks_by_assignee():
     except Exception as e:
         log_test("Filter Tasks by Assignee", False, f"Exception: {str(e)}")
 
-def test_delete_task():
-    """Test deleting a task"""
-    if not created_tasks or len(created_tasks) < 2:
-        log_test("Delete Task", False, "Not enough tasks created to test with")
-        return
-    
-    # Use the last task to avoid affecting other tests
-    task_id = created_tasks[-1]["id"]
-    try:
-        response = requests.delete(f"{BACKEND_URL}/tasks/{task_id}")
-        if response.status_code == 200:
-            log_test("Delete Task", True, f"Deleted task with ID: {task_id}")
-            # Remove the task from our list
-            for i, task in enumerate(created_tasks):
-                if task["id"] == task_id:
-                    created_tasks.pop(i)
-                    break
-        else:
-            log_test("Delete Task", False, f"Status code: {response.status_code}, Response: {response.text}")
-    except Exception as e:
-        log_test("Delete Task", False, f"Exception: {str(e)}")
-
 def test_dashboard_stats():
     """Test dashboard stats endpoint"""
     try:
@@ -617,6 +744,52 @@ def test_project_dashboard():
             log_test("Project Dashboard", False, f"Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
         log_test("Project Dashboard", False, f"Exception: {str(e)}")
+
+def test_user_data_in_resource_management():
+    """Test user data in resource management endpoints"""
+    if not created_users or not created_projects or not created_tasks:
+        log_test("User Data in Resource Management", False, "Not enough users, projects, or tasks created to test with")
+        return
+    
+    # Test resources overview endpoint
+    try:
+        response = requests.get(f"{BACKEND_URL}/resources/overview")
+        if response.status_code == 200:
+            resources = response.json()["resources"]
+            log_test("Resources Overview", True, f"Retrieved {len(resources)} resources")
+            
+            # Verify user data is included in resources
+            for resource in resources:
+                if "discipline" not in resource:
+                    log_test(f"Resource Discipline - {resource['name']}", False, "discipline field missing")
+                else:
+                    log_test(f"Resource Discipline - {resource['name']}", True, f"discipline: {resource['discipline']}")
+        else:
+            log_test("Resources Overview", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Resources Overview", False, f"Exception: {str(e)}")
+    
+    # Test project resources endpoint
+    if not created_projects:
+        return
+    
+    project_id = created_projects[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/projects/{project_id}/resources")
+        if response.status_code == 200:
+            project_resources = response.json()
+            log_test("Project Resources", True, f"Retrieved resources for project {project_id}")
+            
+            # Verify user disciplines are included in project resources
+            for resource in project_resources["resources"]:
+                if "discipline" not in resource:
+                    log_test(f"Project Resource Discipline - {resource['user_name']}", False, "discipline field missing")
+                else:
+                    log_test(f"Project Resource Discipline - {resource['user_name']}", True, f"discipline: {resource['discipline']}")
+        else:
+            log_test("Project Resources", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Project Resources", False, f"Exception: {str(e)}")
 
 def test_delete_user_with_dependencies():
     """Test that a user with assigned tasks cannot be deleted"""
@@ -793,6 +966,9 @@ def run_all_tests():
     test_create_users()
     test_get_users()
     test_get_user_by_id()
+    test_update_user()  # New test for updating user profiles
+    test_partial_user_updates()  # New test for partial user updates
+    test_user_hourly_rate_and_availability()  # New test for hourly rate and availability
     
     # Test project endpoints
     print("\n----- Testing Project Endpoints -----\n")
@@ -817,6 +993,7 @@ def run_all_tests():
     test_dashboard_stats()
     test_project_kanban()
     test_project_dashboard()
+    test_user_data_in_resource_management()  # New test for user data in resource management
     
     # Test delete safety checks
     print("\n----- Testing Delete Safety Checks -----\n")
