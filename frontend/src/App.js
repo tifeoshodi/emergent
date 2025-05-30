@@ -628,6 +628,7 @@ const TaskManagement = () => {
             task={task} 
             users={users} 
             onStatusChange={updateTaskStatus}
+            onDelete={deleteTask}
           />
         ))}
       </div>
