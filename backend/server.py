@@ -327,6 +327,46 @@ async def delete_task(task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task deleted successfully"}
 
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str):
+    # Check if user is assigned to any tasks
+    assigned_tasks = await db.tasks.count_documents({"assigned_to": user_id})
+    if assigned_tasks > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete user. User is assigned to {assigned_tasks} task(s). Please reassign or delete these tasks first.")
+    
+    # Check if user is a project manager
+    managed_projects = await db.projects.count_documents({"project_manager_id": user_id})
+    if managed_projects > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete user. User is managing {managed_projects} project(s). Please reassign project management first.")
+    
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User deleted successfully"}
+
+@api_router.delete("/projects/{project_id}")
+async def delete_project(project_id: str):
+    # Check if project has tasks
+    project_tasks = await db.tasks.count_documents({"project_id": project_id})
+    if project_tasks > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete project. Project has {project_tasks} task(s). Please delete all tasks first or use force delete.")
+    
+    result = await db.projects.delete_one({"id": project_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project deleted successfully"}
+
+@api_router.delete("/projects/{project_id}/force")
+async def force_delete_project(project_id: str):
+    # Delete all tasks in the project first
+    await db.tasks.delete_many({"project_id": project_id})
+    
+    # Delete the project
+    result = await db.projects.delete_one({"id": project_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project and all associated tasks deleted successfully"}
+
 # Dashboard endpoint
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats():
