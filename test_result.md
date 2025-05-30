@@ -529,7 +529,55 @@ frontend:
         agent: "testing"
         comment: "Successfully tested the hourly_rate and availability fields for users. These fields are correctly stored and retrieved for all users. Creating new users with specific hourly_rate and availability values works as expected."
 
-  - task: "User Data in Resource Management"
+  - task: "Epic Management"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested all Epic Management endpoints. POST /api/epics creates epics with different priorities and story points. GET /api/epics lists all epics and filters by project. GET /api/epics/{epic_id} retrieves specific epic details. PUT /api/epics/{epic_id} updates epic information. DELETE /api/epics/{epic_id} correctly prevents deletion of epics with associated tasks."
+
+  - task: "Sprint Management"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested all Sprint Management endpoints. POST /api/sprints creates sprints with goals, capacity, and velocity targets. GET /api/sprints lists all sprints and filters by project and status. GET /api/sprints/{sprint_id} retrieves specific sprint details. PUT /api/sprints/{sprint_id} updates sprint information. DELETE /api/sprints/{sprint_id} correctly unassigns tasks when a sprint is deleted."
+
+  - task: "Enhanced Task Management with Epics and Sprints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested enhanced task management with epic_id, sprint_id, and story_points. Tasks can be created with epic and sprint assignments. Task updates with agile fields (story points, progress percentage) work correctly. Task creation and assignment to epics/sprints functions as expected."
+
+  - task: "Sprint Board"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the sprint-specific kanban board endpoint GET /api/sprints/{sprint_id}/board. The endpoint returns tasks organized by status (todo, in_progress, review, done) for the specific sprint."
+
+  - task: "Sprint Analytics"
     implemented: true
     working: false
     file: "/app/backend/server.py"
@@ -539,7 +587,19 @@ frontend:
     status_history:
       - working: false
         agent: "testing"
-        comment: "The GET /api/resources/overview endpoint returns a 500 Internal Server Error. This endpoint needs to be fixed to properly include user data in resource management. However, the GET /api/projects/{project_id}/resources endpoint works correctly and includes user disciplines in project resources."
+        comment: "The GET /api/sprints/{sprint_id}/analytics endpoint returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide sprint analytics and burndown data."
+
+  - task: "Agile Workflow Integration"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "The complete agile workflow integration test encountered issues with the sprint analytics endpoint. While most of the workflow (creating epics, sprints, tasks, and updating their statuses) works correctly, the sprint analytics functionality returns a 500 error which breaks the complete workflow."
 
 metadata:
   created_by: "testing_agent"
