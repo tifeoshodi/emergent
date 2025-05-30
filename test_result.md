@@ -368,12 +368,14 @@ metadata:
 
 test_plan:
   current_focus: 
+    - "Cross-Page Navigation"
     - "Drag-and-Drop Kanban Board"
     - "Data Persistence"
     - "Sprint Analytics"
     - "Agile Workflow Integration"
     - "Resource Management API"
   stuck_tasks:
+    - "Cross-Page Navigation"
     - "Drag-and-Drop Kanban Board"
     - "Data Persistence"
     - "Sprint Analytics"
