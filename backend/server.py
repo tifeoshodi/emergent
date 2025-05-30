@@ -861,8 +861,8 @@ async def get_sprint_analytics(sprint_id: str):
     completed_tasks = len([task for task in tasks if task.get("status") == "done"])
     
     # Calculate days elapsed and remaining
-    start_date = datetime.fromisoformat(sprint["start_date"].replace('Z', '+00:00'))
-    end_date = datetime.fromisoformat(sprint["end_date"].replace('Z', '+00:00'))
+    start_date = datetime.fromisoformat(sprint["start_date"])
+    end_date = datetime.fromisoformat(sprint["end_date"])
     current_date = datetime.utcnow()
     
     total_days = (end_date - start_date).days
