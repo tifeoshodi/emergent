@@ -653,13 +653,15 @@ const Components = {
   DeleteIcon,
   ConfirmIcon,
   EditIcon,
+  MilestoneIcon,
   PriorityBadge,
   StatusBadge,
   ProgressBar,
   TaskCard,
   GanttChart,
   ResourceManagement,
-  KanbanBoard
+  KanbanBoard,
+  DeleteConfirmModal
 };
 
 export default Components;
