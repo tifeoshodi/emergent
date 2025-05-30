@@ -1197,7 +1197,21 @@ const ProjectManagement = () => {
   const updateTaskStatus = async (taskId, newStatus) => {
     try {
       await axios.put(`${API}/tasks/${taskId}`, { status: newStatus });
-      fetchProjectData(selectedProject.id);
+      
+      // Always refresh kanban data when task status changes
+      if (selectedProject) {
+        const response = await axios.get(`${API}/projects/${selectedProject.id}/kanban`);
+        setKanbanData(response.data);
+        
+        // Also refresh other views if they're currently active
+        if (currentView === 'gantt') {
+          const ganttResponse = await axios.get(`${API}/projects/${selectedProject.id}/gantt`);
+          setGanttData(ganttResponse.data);
+        } else if (currentView === 'resources') {
+          const resourceResponse = await axios.get(`${API}/projects/${selectedProject.id}/resources`);
+          setResourceData(resourceResponse.data);
+        }
+      }
     } catch (error) {
       console.error('Error updating task:', error);
     }
