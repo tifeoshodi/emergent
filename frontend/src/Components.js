@@ -180,7 +180,51 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// Progress Bar Component
+// Story Point Badge Component
+const StoryPointBadge = ({ points }) => {
+  if (!points) return null;
+  
+  return (
+    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+      <StoryPointIcon className="h-3 w-3 mr-1" />
+      {points}
+    </span>
+  );
+};
+
+// Epic Badge Component
+const EpicBadge = ({ epic, compact = false }) => {
+  if (!epic) return null;
+  
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 ${compact ? 'max-w-20 truncate' : ''}`}>
+      <EpicIcon className="h-3 w-3 mr-1 flex-shrink-0" />
+      {compact ? epic.title.substring(0, 8) + '...' : epic.title}
+    </span>
+  );
+};
+
+// Sprint Badge Component
+const SprintBadge = ({ sprint, compact = false }) => {
+  if (!sprint) return null;
+  
+  const getSprintColor = (status) => {
+    switch (status) {
+      case 'planning': return 'bg-gray-100 text-gray-800';
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+  
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getSprintColor(sprint.status)} ${compact ? 'max-w-24 truncate' : ''}`}>
+      <SprintIcon className="h-3 w-3 mr-1 flex-shrink-0" />
+      {compact ? sprint.name.substring(0, 10) + '...' : sprint.name}
+    </span>
+  );
+};
 const ProgressBar = ({ progress, className = "" }) => {
   const percentage = Math.min(Math.max(progress || 0, 0), 100);
   
