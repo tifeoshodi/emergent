@@ -604,14 +604,16 @@ frontend:
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: true
 
 test_plan:
   current_focus: 
-    - "User Data in Resource Management"
+    - "Sprint Analytics"
+    - "Agile Workflow Integration"
   stuck_tasks:
-    - "User Data in Resource Management"
+    - "Sprint Analytics"
+    - "Agile Workflow Integration"
   test_all: false
   test_priority: "high_first"
 
@@ -630,3 +632,5 @@ agent_communication:
     message: "Completed testing of the PMFusion application with all Phase 3A features including the new delete functionality. All features are working correctly: Home Page & Navigation, Project-Specific Dashboard, Delete Functionality (Tasks, Kanban Tasks, Projects), Enhanced Task Management, Project Management Views, and Data Persistence. The delete functionality works as expected with proper confirmation dialogs and error handling for dependencies. The application correctly prevents accidental deletion of projects with tasks and suggests force delete when appropriate."
   - agent: "testing"
     message: "Completed testing of the enhanced PMFusion backend with new user management features for Phase 3B. The PUT /api/users/{user_id} endpoint works correctly for updating user profiles including name, email, role, discipline, hourly_rate, and availability fields. Both full updates and partial updates work as expected. The hourly_rate and availability fields are correctly stored and retrieved for all users. However, the GET /api/resources/overview endpoint returns a 500 Internal Server Error and needs to be fixed. The GET /api/projects/{project_id}/resources endpoint works correctly and includes user disciplines in project resources."
+  - agent: "testing"
+    message: "Completed testing of the enhanced PMFusion backend with new Epics and Sprints functionality for Phase 4. Most of the new endpoints are working correctly: POST/GET/PUT/DELETE for epics and sprints, enhanced task management with epic_id and sprint_id, and sprint-specific kanban board. However, there are issues with the sprint analytics endpoint (GET /api/sprints/{sprint_id}/analytics) which returns a 500 Internal Server Error. This affects the complete agile workflow integration as well. These issues need to be fixed to properly support sprint analytics and burndown data."
