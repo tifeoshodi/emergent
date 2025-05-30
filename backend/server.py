@@ -59,6 +59,18 @@ class ProjectStatus(str, Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+class SprintStatus(str, Enum):
+    PLANNING = "planning"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+class EpicStatus(str, Enum):
+    BACKLOG = "backlog"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
 # Models
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
