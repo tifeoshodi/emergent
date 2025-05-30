@@ -616,16 +616,20 @@ async def get_resources_overview():
     for user in users:
         user_tasks = [t for t in tasks if t.get("assigned_to") == user["id"]]
         total_hours = sum(t.get("estimated_hours", 8) for t in user_tasks)
-        available_hours = 40  # Default 40 hours per week
+        
+        # Use user's availability or default to 40 hours
+        user_availability = user.get("availability", 1.0)
+        available_hours = 40 * user_availability  # 40 hours * availability percentage
         
         resource_summary.append({
             "user_id": user["id"],
             "name": user["name"],
             "role": user["role"],
             "discipline": user.get("discipline", "General"),
+            "hourly_rate": user.get("hourly_rate"),
             "allocated_hours": total_hours,
             "available_hours": available_hours,
-            "utilization_percent": min((total_hours / available_hours) * 100, 100),
+            "utilization_percent": min((total_hours / available_hours) * 100, 100) if available_hours > 0 else 0,
             "active_tasks": len([t for t in user_tasks if t.get("status") != "done"])
         })
     
