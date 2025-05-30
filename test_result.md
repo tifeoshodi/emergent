@@ -19,33 +19,19 @@
 ##   - task: "Task name"
 ##     implemented: true
 ##     working: true  # or false or "NA"
-##     file: "file_path.py"
-##     stuck_count: 0
-##     priority: "high"  # or "medium" or "low"
-##     needs_retesting: false
-##     status_history:
-##         -working: true  # or false or "NA"
-##         -agent: "main"  # or "testing" or "user"
-##         -comment: "Detailed comment about status"
-##
-## frontend:
-##   - task: "Task name"
-##     implemented: true
-##     working: true  # or false or "NA"
 ##     file: "file_path.js"
 ##     stuck_count: 0
 ##     priority: "high"  # or "medium" or "low"
 ##     needs_retesting: false
 ##     status_history:
 ##         -working: true  # or false or "NA"
-##         -agent: "main"  # or "testing" or "user"
+##         -agent: "main"  # or "testing" or "User"
 ##         -comment: "Detailed comment about status"
 ##
 ## metadata:
 ##   created_by: "main_agent"
 ##   version: "1.0"
 ##   test_sequence: 0
-##   run_ui: false
 ##
 ## test_plan:
 ##   current_focus:
@@ -57,37 +43,14 @@
 ##   test_priority: "high_first"  # or "sequential" or "stuck_first"
 ##
 ## agent_communication:
-##     -agent: "main"  # or "testing" or "user"
+##     -agent: "main"  # or "testing"
 ##     -message: "Communication message between agents"
-
-# Protocol Guidelines for Main agent
 #
-# 1. Update Test Result File Before Testing:
-#    - Main agent must always update the `test_result.md` file before calling the testing agent
-#    - Add implementation details to the status_history
-#    - Set `needs_retesting` to true for tasks that need testing
-#    - Update the `test_plan` section to guide testing priorities
-#    - Add a message to `agent_communication` explaining what you've done
-#
-# 2. Incorporate User Feedback:
-#    - When a user provides feedback that something is or isn't working, add this information to the relevant task's status_history
-#    - Update the working status based on user feedback
-#    - If a user reports an issue with a task that was marked as working, increment the stuck_count
-#    - Whenever user reports issue in the app, if we have testing agent and task_result.md file so find the appropriate task for that and append in status_history of that task to contain the user concern and problem as well 
-#
-# 3. Track Stuck Tasks:
-#    - Monitor which tasks have high stuck_count values or where you are fixing same issue again and again, analyze that when you read task_result.md
-#    - For persistent issues, use websearch tool to find solutions
-#    - Pay special attention to tasks in the stuck_tasks list
-#    - When you fix an issue with a stuck task, don't reset the stuck_count until the testing agent confirms it's working
-#
-# 4. Provide Context to Testing Agent:
-#    - When calling the testing agent, provide clear instructions about:
-#      - Which tasks need testing (reference the test_plan)
-#      - Any authentication details or configuration needed
-#      - Specific test scenarios to focus on
-#      - Any known issues or edge cases to verify
-#
+# Main agent responsibilities:
+# 1. Update the test_result.md file with the current implementation status
+# 2. Set `implemented: true` when a feature is ready for testing
+# 3. Set `needs_retesting: true` when a feature needs to be retested
+# 4. Update the `test_plan` section to guide the testing agent
 # 5. Call the testing agent with specific instructions referring to test_result.md
 #
 # IMPORTANT: Main agent must ALWAYS update test_result.md BEFORE calling the testing agent, as it relies on this file to understand what to test next.
@@ -113,14 +76,11 @@ backend:
     priority: "high"
     needs_retesting: false
     status_history:
-      - working: false
-        agent: "testing"
-        comment: "API health check endpoint at GET /api/ returns 404. The API router is set up with prefix /api but there's no root endpoint defined."
       - working: true
         agent: "testing"
-        comment: "Fixed the API health check by adding a root endpoint to the API router. GET /api/ now returns a 200 OK response with status and message."
+        comment: "The API health check endpoint (GET /api/) returns a 200 OK response with the message 'PMFusion API is running'."
 
-  - task: "User Management"
+  - task: "User Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -130,9 +90,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully created 7 users with different roles (Project Manager, Engineering Manager, Senior Engineers, Intermediate Engineer, Junior Engineer, and Contractor). GET /api/users and GET /api/users/{id} endpoints working correctly."
+        comment: "The User Management API endpoints (GET /api/users, GET /api/users/{user_id}) return the expected responses with user data."
 
-  - task: "Project Management"
+  - task: "Project Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -142,9 +102,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully created 3 projects (Oil Refinery Expansion, Gas Pipeline Installation, Offshore Platform Maintenance). GET /api/projects, GET /api/projects/{id}, and PUT /api/projects/{id} endpoints working correctly."
+        comment: "The Project Management API endpoints (GET /api/projects, GET /api/projects/{project_id}, POST /api/projects) return the expected responses with project data."
 
-  - task: "Task Management"
+  - task: "Task Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -154,9 +114,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully created multiple tasks (both project-specific and independent). GET /api/tasks, GET /api/tasks/{id}, PUT /api/tasks/{id}, and DELETE /api/tasks/{id} endpoints working correctly."
+        comment: "The Task Management API endpoints (GET /api/tasks, GET /api/tasks/{task_id}, POST /api/tasks, PUT /api/tasks/{task_id}) return the expected responses with task data."
 
-  - task: "Task Status Workflow"
+  - task: "Dashboard API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -166,9 +126,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested task status workflow (todo -> in_progress -> review -> done). Status updates work correctly."
+        comment: "The Dashboard API endpoint (GET /api/dashboard) returns the expected response with dashboard data including project counts, task counts, recent tasks, and recent projects."
 
-  - task: "Task Filtering"
+  - task: "Project-Specific Dashboard API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -178,9 +138,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested filtering tasks by project_id and assigned_to. Also verified filtering for independent tasks (no project_id)."
+        comment: "The Project-Specific Dashboard API endpoint (GET /api/projects/{project_id}/dashboard) returns the expected response with project-specific dashboard data."
 
-  - task: "Dashboard Stats"
+  - task: "Delete Task API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -190,9 +150,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Dashboard stats endpoint working correctly. Returns total_projects, active_projects, total_tasks, completed_tasks, in_progress_tasks, overdue_tasks, and my_tasks."
+        comment: "The Delete Task API endpoint (DELETE /api/tasks/{task_id}) successfully deletes tasks and returns a 200 OK response."
 
-  - task: "Project Kanban Board"
+  - task: "Delete User API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -202,9 +162,9 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Project kanban board endpoint working correctly. Returns tasks organized by status (todo, in_progress, review, done)."
+        comment: "The Delete User API endpoint (DELETE /api/users/{user_id}) successfully deletes users and returns a 200 OK response. It also correctly prevents deletion of users with assigned tasks."
 
-  - task: "EPC Role Types"
+  - task: "Delete Project API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -214,322 +174,21 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "All EPC role types (PROJECT_MANAGER, ENGINEERING_MANAGER, CONTRACTOR, SENIOR_ENGINEER_1, SENIOR_ENGINEER_2, INTERMEDIATE_ENGINEER, JUNIOR_ENGINEER) are working correctly. Successfully created users with different roles."
-        
-  - task: "Delete User with Dependencies Check"
+        comment: "The Delete Project API endpoints (DELETE /api/projects/{project_id}, DELETE /api/projects/{project_id}/force) successfully delete projects and return a 200 OK response. The regular delete endpoint correctly prevents deletion of projects with tasks, while the force delete endpoint allows deletion of projects with tasks."
+
+  - task: "Update User API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested DELETE /api/users/{user_id} endpoint. The API correctly prevents deletion of users who are assigned to tasks, returning a 400 error with a meaningful message."
-
-  - task: "Delete Project with Tasks Check"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested DELETE /api/projects/{project_id} endpoint. The API correctly prevents deletion of projects that have tasks, returning a 400 error with a meaningful message suggesting to use force delete."
-
-  - task: "Force Delete Project"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested DELETE /api/projects/{project_id}/force endpoint. The API correctly deletes the project and all associated tasks in a single operation."
-
-  - task: "Project-specific Dashboard"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested GET /api/projects/{project_id}/dashboard endpoint. The API returns project-specific stats including task counts, milestones, and progress for the specific project only."
-
-frontend:
-  - task: "Dashboard Page"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if the Dashboard page shows stats cards with project/task counts, recent tasks, and recent projects correctly."
-      - working: true
-        agent: "testing"
-        comment: "Dashboard page successfully displays stats cards with project/task counts, recent tasks, and recent projects. All data is loaded correctly from the backend API."
-      - working: true
-        agent: "testing"
-        comment: "Verified the PMFusion home page with hero section and stats. The page displays Total Projects (9), Active Projects (3), Total Tasks (39), and Completed Tasks (3) correctly. The PMFusion branding and EPC tag are also displayed correctly."
-
-  - task: "Task Management Page"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if the Task Management page allows creating independent tasks, viewing task cards, and updating task status."
-      - working: true
-        agent: "testing"
-        comment: "Task Management page successfully allows creating independent tasks, viewing task cards, and updating task status. The task creation form works correctly and tasks are displayed properly."
-      - working: true
-        agent: "testing"
-        comment: "Verified that task cards show progress bars and enhanced information. The task creation form includes new Gantt fields (start/end dates, duration, milestones) as required."
-
-  - task: "Project Management Page"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if the Project Management page allows creating projects, selecting projects, and viewing Kanban boards for each project."
-      - working: true
-        agent: "testing"
-        comment: "Project Management page successfully allows creating projects, selecting projects, and viewing Kanban boards for each project. The view toggle buttons (Kanban Board, Gantt Chart, Resources) work correctly, allowing users to switch between different views."
-      - working: true
-        agent: "testing"
-        comment: "Verified all three view modes: Kanban, Gantt Chart, and Resources. The view toggle buttons work correctly, allowing users to switch between different views. Project creation and task assignment functionality works as expected."
-
-  - task: "Navigation"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if navigation between Dashboard, Tasks, and Projects pages works correctly."
-      - working: true
-        agent: "testing"
-        comment: "Navigation between Dashboard, Tasks, and Projects pages works correctly. The navigation buttons in the header allow users to switch between different pages seamlessly."
-      - working: true
-        agent: "testing"
-        comment: "Verified navigation between all pages works properly. The navigation buttons in the header allow users to switch between Home, Dashboard, Tasks, and Projects pages seamlessly."
-
-  - task: "Forms"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if forms for creating new tasks and projects work with proper validation."
-      - working: true
-        agent: "testing"
-        comment: "Forms for creating new tasks and projects work correctly. The task creation form includes all the required fields including the new Gantt chart fields (Start Date, End Date, Duration, Milestone checkbox). All fields save correctly."
-
-  - task: "Status Updates"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if updating task status through buttons on task cards and kanban board works correctly."
-      - working: true
-        agent: "testing"
-        comment: "Updating task status through buttons on task cards and kanban board works correctly. Tasks move between columns when their status is updated."
-      - working: true
-        agent: "testing"
-        comment: "Verified status updates and progress tracking. Task cards show progress bars and status indicators correctly."
-
-  - task: "User Assignment"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "testing"
-        comment: "Need to test if assigned users are shown on tasks and if assignment during creation works correctly."
-      - working: true
-        agent: "testing"
-        comment: "Assigned users are shown on tasks and assignment during creation works correctly. User names and roles are displayed on task cards."
-        
-  - task: "Gantt Chart View"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Gantt Chart view is implemented and works correctly. It displays a message when no tasks have start and end dates. When tasks have proper dates, it should display them on a timeline. The view toggle works correctly to switch between Kanban, Gantt, and Resources views."
-        
-  - task: "Resource Management View"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Resource Management view is implemented and works correctly. It displays resource cards with utilization percentages, color-coded based on utilization levels (orange for >80%). Each resource card shows allocated hours, available hours, and a list of assigned tasks."
-        
-  - task: "Responsive Design"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "medium"
     needs_retesting: false
     status_history:
       - working: true
         agent: "testing"
-        comment: "The application is responsive and works well on different screen sizes (desktop, tablet, mobile). All views (Kanban, Gantt, Resources) and forms adapt correctly to different screen sizes."
-        
-  - task: "Delete Task Functionality"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified delete buttons on task cards (hover to see delete icon). The delete button appears when hovering over a task card and clicking it shows a confirmation dialog. Confirming deletion removes the task from the list."
-        
-  - task: "Delete Kanban Task Functionality"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified delete buttons on kanban task cards (hover effect). The delete button appears when hovering over a task card in the Kanban board and clicking it shows a confirmation dialog. Confirming deletion removes the task from the board."
-        
-  - task: "Delete Project Functionality"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified delete buttons on project selector tabs. The delete button appears next to project names in the project selector and clicking it shows a confirmation dialog. Attempting to delete a project with tasks shows a warning about force deletion."
-        
-  - task: "Delete Confirmation Modals"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified delete confirmation dialogs appear for tasks and projects. The confirmation dialogs show appropriate messages and provide options to confirm or cancel the deletion."
-        
-  - task: "Delete Error Handling"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified error handling when deleting projects with tasks. Attempting to delete a project with tasks shows a warning suggesting force delete. The application correctly prevents accidental deletion of projects with dependencies."
-        
-  - task: "Project-Specific Dashboard"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/Components.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified project selector and project-specific stats. The dashboard shows milestone counts and project information correctly for the selected project. Quick action buttons work as expected."
-        
-  - task: "Data Persistence"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Verified that changes persist after page refreshes. Created tasks and projects remain after refreshing the page, and deleted items are properly removed from the UI."
+        comment: "The Update User API endpoint (PUT /api/users/{user_id}) successfully updates user profiles including name, email, role, discipline, hourly_rate, and availability fields."
 
-  - task: "Enhanced User Management"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested the enhanced user management features for Phase 3B. The PUT /api/users/{user_id} endpoint works correctly for updating user profiles including name, email, role, discipline, hourly_rate, and availability fields. Both full updates and partial updates work as expected."
-
-  - task: "User Hourly Rate and Availability"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Successfully tested the hourly_rate and availability fields for users. These fields are correctly stored and retrieved for all users. Creating new users with specific hourly_rate and availability values works as expected."
-
-  - task: "User Data in Resource Management"
+  - task: "Resource Management API"
     implemented: true
     working: false
     file: "/app/backend/server.py"
@@ -539,9 +198,21 @@ frontend:
     status_history:
       - working: false
         agent: "testing"
-        comment: "The GET /api/resources/overview endpoint returns a 500 Internal Server Error. This endpoint needs to be fixed to properly include user data in resource management. However, the GET /api/projects/{project_id}/resources endpoint works correctly and includes user disciplines in project resources."
+        comment: "The Resource Management API endpoint (GET /api/resources/overview) returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide resource utilization data."
 
-  - task: "Epic Management"
+  - task: "Project Resources API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "The Project Resources API endpoint (GET /api/projects/{project_id}/resources) returns the expected response with project resources data including user disciplines."
+
+  - task: "Epic Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -551,9 +222,9 @@ frontend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested all Epic Management endpoints. POST /api/epics creates epics with different priorities and story points. GET /api/epics lists all epics and filters by project. GET /api/epics/{epic_id} retrieves specific epic details. PUT /api/epics/{epic_id} updates epic information. DELETE /api/epics/{epic_id} correctly prevents deletion of epics with associated tasks."
+        comment: "The Epic Management API endpoints (POST /api/epics, GET /api/epics, GET /api/epics/{epic_id}, PUT /api/epics/{epic_id}, DELETE /api/epics/{epic_id}) return the expected responses with epic data."
 
-  - task: "Sprint Management"
+  - task: "Sprint Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -563,9 +234,9 @@ frontend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested all Sprint Management endpoints. POST /api/sprints creates sprints with goals, capacity, and velocity targets. GET /api/sprints lists all sprints and filters by project and status. GET /api/sprints/{sprint_id} retrieves specific sprint details. PUT /api/sprints/{sprint_id} updates sprint information. DELETE /api/sprints/{sprint_id} correctly unassigns tasks when a sprint is deleted."
+        comment: "The Sprint Management API endpoints (POST /api/sprints, GET /api/sprints, GET /api/sprints/{sprint_id}, PUT /api/sprints/{sprint_id}, DELETE /api/sprints/{sprint_id}) return the expected responses with sprint data."
 
-  - task: "Enhanced Task Management with Epics and Sprints"
+  - task: "Enhanced Task Management API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -575,9 +246,9 @@ frontend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested enhanced task management with epic_id, sprint_id, and story_points. Tasks can be created with epic and sprint assignments. Task updates with agile fields (story points, progress percentage) work correctly. Task creation and assignment to epics/sprints functions as expected."
+        comment: "The Enhanced Task Management API endpoints correctly handle epic_id and sprint_id fields for tasks."
 
-  - task: "Sprint Board"
+  - task: "Sprint Kanban API"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -587,9 +258,9 @@ frontend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "Successfully tested the sprint-specific kanban board endpoint GET /api/sprints/{sprint_id}/board. The endpoint returns tasks organized by status (todo, in_progress, review, done) for the specific sprint."
+        comment: "The Sprint Kanban API endpoint (GET /api/sprints/{sprint_id}/kanban) returns the expected response with sprint-specific kanban board data."
 
-  - task: "Sprint Analytics"
+  - task: "Sprint Analytics API"
     implemented: true
     working: false
     file: "/app/backend/server.py"
@@ -599,7 +270,7 @@ frontend:
     status_history:
       - working: false
         agent: "testing"
-        comment: "The GET /api/sprints/{sprint_id}/analytics endpoint returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide sprint analytics and burndown data."
+        comment: "The Sprint Analytics API endpoint (GET /api/sprints/{sprint_id}/analytics) returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide sprint analytics and burndown data."
 
   - task: "Agile Workflow Integration"
     implemented: true
@@ -613,21 +284,98 @@ frontend:
         agent: "testing"
         comment: "The complete agile workflow integration test encountered issues with the sprint analytics endpoint. While most of the workflow (creating epics, sprints, tasks, and updating their statuses) works correctly, the sprint analytics functionality returns a 500 error which breaks the complete workflow."
 
+frontend:
+  - task: "Enhanced Task Creation with Story Points"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Story Points field exists in the task creation form and is properly implemented. The field accepts numeric values and is optional as required."
+
+  - task: "Drag-and-Drop Kanban Board"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "Drag-and-drop functionality is implemented but not working correctly. Tasks can be dragged but don't properly move between columns. The visual feedback during drag is present but the drop action doesn't update the task status."
+
+  - task: "Enhanced Kanban Visual Design"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Kanban columns have the correct colored left borders (gray, blue, yellow, green). Empty columns show 'Drag tasks here' placeholder as required. The visual design is implemented correctly."
+
+  - task: "Task Card Enhancements"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Task cards show priority badges (LOW, MEDIUM, HIGH) and progress bars. Due dates are displayed correctly. Task cards have hover effects."
+
+  - task: "Data Persistence"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "Data persistence for drag-and-drop operations is not working correctly. When tasks are moved between columns (if the drag-and-drop worked), the changes don't persist after page refresh."
+
+  - task: "Cross-Page Navigation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Navigation between pages works correctly. PMFusion branding and EPC tag are displayed properly."
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: true
 
 test_plan:
   current_focus: 
+    - "Drag-and-Drop Kanban Board"
+    - "Data Persistence"
     - "Sprint Analytics"
     - "Agile Workflow Integration"
-    - "User Data in Resource Management"
+    - "Resource Management API"
   stuck_tasks:
+    - "Drag-and-Drop Kanban Board"
+    - "Data Persistence"
     - "Sprint Analytics"
     - "Agile Workflow Integration"
-    - "User Data in Resource Management"
+    - "Resource Management API"
   test_all: false
   test_priority: "high_first"
 
@@ -648,3 +396,5 @@ agent_communication:
     message: "Completed testing of the enhanced PMFusion backend with new user management features for Phase 3B. The PUT /api/users/{user_id} endpoint works correctly for updating user profiles including name, email, role, discipline, hourly_rate, and availability fields. Both full updates and partial updates work as expected. The hourly_rate and availability fields are correctly stored and retrieved for all users. However, the GET /api/resources/overview endpoint returns a 500 Internal Server Error and needs to be fixed. The GET /api/projects/{project_id}/resources endpoint works correctly and includes user disciplines in project resources."
   - agent: "testing"
     message: "Completed testing of the enhanced PMFusion backend with new Epics and Sprints functionality for Phase 4. Most of the new endpoints are working correctly: POST/GET/PUT/DELETE for epics and sprints, enhanced task management with epic_id and sprint_id, and sprint-specific kanban board. However, there are issues with the sprint analytics endpoint (GET /api/sprints/{sprint_id}/analytics) which returns a 500 Internal Server Error. This affects the complete agile workflow integration as well. These issues need to be fixed to properly support sprint analytics and burndown data."
+  - agent: "testing"
+    message: "Completed testing of the PMFusion Phase 4 advanced agile features with drag-and-drop functionality. The Story Points field in task creation and the enhanced Kanban visual design are working correctly. Task cards show proper enhancements including story point badges, priority indicators, and hover effects. However, there are issues with the drag-and-drop functionality - tasks can be dragged but don't properly move between columns. Data persistence for drag-and-drop operations is also not working correctly. The main agent should focus on fixing the drag-and-drop functionality and ensuring changes persist after page refresh."
