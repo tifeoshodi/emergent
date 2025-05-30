@@ -538,6 +538,11 @@ def test_delete_task():
         response = requests.delete(f"{BACKEND_URL}/tasks/{task_id}")
         if response.status_code == 200:
             log_test("Delete Task", True, f"Deleted task with ID: {task_id}")
+            # Remove the task from our list
+            for i, task in enumerate(created_tasks):
+                if task["id"] == task_id:
+                    created_tasks.pop(i)
+                    break
         else:
             log_test("Delete Task", False, f"Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
