@@ -169,6 +169,9 @@ class Task(BaseModel):
     priority: TaskPriority = TaskPriority.MEDIUM
     assigned_to: Optional[str] = None  # user_id
     project_id: Optional[str] = None  # None for independent tasks
+    epic_id: Optional[str] = None  # Epic this task belongs to
+    sprint_id: Optional[str] = None  # Sprint this task is assigned to
+    story_points: Optional[int] = None  # Agile story points
     created_by: str
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
