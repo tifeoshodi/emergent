@@ -5,6 +5,7 @@ import time
 import uuid
 import sys
 import os
+import random
 
 # Get Backend URL from frontend/.env
 def get_backend_url():
