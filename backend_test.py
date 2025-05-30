@@ -851,6 +851,30 @@ def test_delete_project_with_tasks():
     except Exception as e:
         log_test("Delete Project With Tasks", False, f"Exception: {str(e)}")
 
+def test_delete_task():
+    """Test deleting a task"""
+    if not created_tasks or len(created_tasks) < 2:
+        log_test("Delete Task", False, "Not enough tasks created to test with")
+        return
+    
+    # Use the last task to avoid affecting other tests
+    task_id = created_tasks[-1]["id"]
+    
+    try:
+        response = requests.delete(f"{BACKEND_URL}/tasks/{task_id}")
+        if response.status_code == 200:
+            log_test("Delete Task", True, f"Successfully deleted task {task_id}")
+            
+            # Remove the task from our list
+            for i, task in enumerate(created_tasks):
+                if task["id"] == task_id:
+                    created_tasks.pop(i)
+                    break
+        else:
+            log_test("Delete Task", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Delete Task", False, f"Exception: {str(e)}")
+
 def test_force_delete_project():
     """Test force deleting a project and all its tasks"""
     if not created_projects or len(created_projects) < 2:
