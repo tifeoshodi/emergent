@@ -1140,31 +1140,29 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      <div className="App min-h-screen bg-gray-50">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/dashboard" element={
-            <>
-              <Navigation currentPage="dashboard" setCurrentPage={setCurrentPage} />
-              <main><Dashboard /></main>
-            </>
-          } />
-          <Route path="/tasks" element={
-            <>
-              <Navigation currentPage="tasks" setCurrentPage={setCurrentPage} />
-              <main><TaskManagement /></main>
-            </>
-          } />
-          <Route path="/projects" element={
-            <>
-              <Navigation currentPage="projects" setCurrentPage={setCurrentPage} />
-              <main><ProjectManagement /></main>
-            </>
-          } />
-        </Routes>
-      </div>
-    </BrowserRouter>
+    <div className="App min-h-screen bg-gray-50">
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/dashboard" element={
+          <>
+            <Navigation currentPage="dashboard" setCurrentPage={setCurrentPage} />
+            <main><Dashboard /></main>
+          </>
+        } />
+        <Route path="/tasks" element={
+          <>
+            <Navigation currentPage="tasks" setCurrentPage={setCurrentPage} />
+            <main><TaskManagement /></main>
+          </>
+        } />
+        <Route path="/projects" element={
+          <>
+            <Navigation currentPage="projects" setCurrentPage={setCurrentPage} />
+            <main><ProjectManagement /></main>
+          </>
+        } />
+      </Routes>
+    </div>
   );
 }
 
