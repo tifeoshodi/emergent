@@ -399,6 +399,39 @@ async def get_dashboard_stats():
         my_tasks=my_tasks
     )
 
+# Project-specific dashboard endpoint
+@api_router.get("/projects/{project_id}/dashboard", response_model=DashboardStats)
+async def get_project_dashboard_stats(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Count tasks for this project only
+    total_tasks = await db.tasks.count_documents({"project_id": project_id})
+    completed_tasks = await db.tasks.count_documents({"project_id": project_id, "status": TaskStatus.DONE})
+    in_progress_tasks = await db.tasks.count_documents({"project_id": project_id, "status": TaskStatus.IN_PROGRESS})
+    
+    # Count overdue tasks for this project
+    current_time = datetime.utcnow()
+    overdue_tasks = await db.tasks.count_documents({
+        "project_id": project_id,
+        "due_date": {"$lt": current_time},
+        "status": {"$ne": TaskStatus.DONE}
+    })
+    
+    # Count milestones
+    milestones = await db.tasks.count_documents({"project_id": project_id, "is_milestone": True})
+    
+    return DashboardStats(
+        total_projects=1,  # Always 1 for project-specific
+        active_projects=1 if project["status"] == ProjectStatus.ACTIVE else 0,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        in_progress_tasks=in_progress_tasks,
+        overdue_tasks=overdue_tasks,
+        my_tasks=milestones  # Reuse this field for milestones in project view
+    )
+
 # Kanban board data for projects
 @api_router.get("/projects/{project_id}/kanban")
 async def get_project_kanban(project_id: str):
