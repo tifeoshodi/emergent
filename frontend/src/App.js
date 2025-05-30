@@ -1448,6 +1448,16 @@ const ProjectManagement = () => {
                   />
                   <label htmlFor="is_milestone" className="text-sm text-gray-700">Mark as Milestone</label>
                 </div>
+
+                <input
+                  type="number"
+                  placeholder="Story Points (Optional)"
+                  value={newTask.story_points || ''}
+                  onChange={(e) => setNewTask({...newTask, story_points: e.target.value ? parseInt(e.target.value) : null})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  min="1"
+                  max="100"
+                />
               </div>
               
               <div className="flex gap-3">
