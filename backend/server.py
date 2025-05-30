@@ -109,6 +109,58 @@ class ProjectCreate(BaseModel):
     end_date: Optional[datetime] = None
     project_manager_id: str
 
+class Epic(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    status: EpicStatus = EpicStatus.BACKLOG
+    project_id: str
+    created_by: str
+    assigned_to: Optional[str] = None  # Epic owner
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    story_points: Optional[int] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    labels: List[str] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class EpicCreate(BaseModel):
+    title: str
+    description: str
+    project_id: str
+    assigned_to: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    story_points: Optional[int] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    labels: List[str] = []
+
+class Sprint(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    status: SprintStatus = SprintStatus.PLANNING
+    project_id: str
+    start_date: datetime
+    end_date: datetime
+    goal: Optional[str] = None
+    created_by: str
+    capacity_hours: Optional[float] = None  # Total team capacity for sprint
+    velocity_target: Optional[int] = None  # Target story points
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class SprintCreate(BaseModel):
+    name: str
+    description: str
+    project_id: str
+    start_date: datetime
+    end_date: datetime
+    goal: Optional[str] = None
+    capacity_hours: Optional[float] = None
+    velocity_target: Optional[int] = None
+
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
