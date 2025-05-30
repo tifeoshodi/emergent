@@ -824,13 +824,13 @@ const ProjectManagement = () => {
 
     switch (currentView) {
       case 'kanban':
-        return <Components.KanbanBoard kanbanData={kanbanData} users={users} onStatusChange={updateTaskStatus} />;
+        return <Components.KanbanBoard kanbanData={kanbanData} users={users} onStatusChange={updateTaskStatus} onDelete={deleteTask} />;
       case 'gantt':
         return <Components.GanttChart ganttData={ganttData} users={users} />;
       case 'resources':
         return <Components.ResourceManagement resources={resourceData} />;
       default:
-        return <Components.KanbanBoard kanbanData={kanbanData} users={users} onStatusChange={updateTaskStatus} />;
+        return <Components.KanbanBoard kanbanData={kanbanData} users={users} onStatusChange={updateTaskStatus} onDelete={deleteTask} />;
     }
   };
 
