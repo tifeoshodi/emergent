@@ -317,11 +317,7 @@ const GanttChart = ({ ganttData, users, onProgressUpdate }) => {
                   {/* Task Info */}
                   <div className="w-64 flex-shrink-0 pr-4">
                     <div className="flex items-center">
-                      {task.is_milestone ? (
-                        <MilestoneIcon className="h-4 w-4 text-yellow-600 mr-2" />
-                      ) : (
-                        <TaskIcon className="h-4 w-4 text-gray-600 mr-2" />
-                      )}
+                      <TaskIcon className="h-4 w-4 text-gray-600 mr-2" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
                         {assignedUser && (
