@@ -866,7 +866,7 @@ const Components = {
   TaskCard,
   GanttChart,
   ResourceManagement,
-  KanbanBoard,
+  DragDropKanbanBoard,
   DeleteConfirmModal
 };
 
