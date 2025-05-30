@@ -1094,7 +1094,8 @@ const ProjectManagement = () => {
     start_date: '',
     end_date: '',
     duration_days: '',
-    is_milestone: false
+    is_milestone: false,
+    story_points: null
   });
 
   useEffect(() => {
