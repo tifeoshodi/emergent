@@ -577,6 +577,196 @@ def test_project_kanban():
     except Exception as e:
         log_test("Project Kanban", False, f"Exception: {str(e)}")
 
+def test_project_dashboard():
+    """Test project-specific dashboard endpoint"""
+    if not created_projects:
+        log_test("Project Dashboard", False, "No projects created to test with")
+        return
+    
+    project_id = created_projects[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/projects/{project_id}/dashboard")
+        if response.status_code == 200:
+            dashboard = response.json()
+            log_test("Project Dashboard", True, f"Retrieved dashboard stats for project {project_id}: {dashboard}")
+            
+            # Verify the dashboard contains the expected fields
+            expected_fields = ["total_projects", "active_projects", "total_tasks", 
+                              "completed_tasks", "in_progress_tasks", "overdue_tasks", "my_tasks"]
+            missing_fields = [field for field in expected_fields if field not in dashboard]
+            
+            if missing_fields:
+                log_test("Project Dashboard Fields", False, f"Missing fields: {missing_fields}")
+            else:
+                log_test("Project Dashboard Fields", True, "All expected fields present")
+        else:
+            log_test("Project Dashboard", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Project Dashboard", False, f"Exception: {str(e)}")
+
+def test_delete_user_with_dependencies():
+    """Test that a user with assigned tasks cannot be deleted"""
+    if not created_users or not created_tasks:
+        log_test("Delete User With Dependencies", False, "No users or tasks created to test with")
+        return
+    
+    # Find a user who is assigned to tasks
+    assigned_user = None
+    for user in created_users:
+        for task in created_tasks:
+            if task.get("assigned_to") == user["id"]:
+                assigned_user = user
+                break
+        if assigned_user:
+            break
+    
+    if not assigned_user:
+        log_test("Delete User With Dependencies", False, "No user found with assigned tasks")
+        return
+    
+    try:
+        response = requests.delete(f"{BACKEND_URL}/users/{assigned_user['id']}")
+        # This should fail with a 400 status code
+        if response.status_code == 400:
+            log_test("Delete User With Dependencies", True, f"Correctly prevented deletion of user with assigned tasks: {response.json().get('detail', '')}")
+        else:
+            log_test("Delete User With Dependencies", False, f"Expected 400 status code, got {response.status_code}: {response.text}")
+    except Exception as e:
+        log_test("Delete User With Dependencies", False, f"Exception: {str(e)}")
+
+def test_delete_project_with_tasks():
+    """Test that a project with tasks cannot be deleted"""
+    if not created_projects:
+        log_test("Delete Project With Tasks", False, "No projects created to test with")
+        return
+    
+    # Find a project with tasks
+    project_with_tasks = None
+    for project in created_projects:
+        for task in created_tasks:
+            if task.get("project_id") == project["id"]:
+                project_with_tasks = project
+                break
+        if project_with_tasks:
+            break
+    
+    if not project_with_tasks:
+        log_test("Delete Project With Tasks", False, "No project found with tasks")
+        return
+    
+    try:
+        response = requests.delete(f"{BACKEND_URL}/projects/{project_with_tasks['id']}")
+        # This should fail with a 400 status code
+        if response.status_code == 400:
+            log_test("Delete Project With Tasks", True, f"Correctly prevented deletion of project with tasks: {response.json().get('detail', '')}")
+        else:
+            log_test("Delete Project With Tasks", False, f"Expected 400 status code, got {response.status_code}: {response.text}")
+    except Exception as e:
+        log_test("Delete Project With Tasks", False, f"Exception: {str(e)}")
+
+def test_force_delete_project():
+    """Test force deleting a project and all its tasks"""
+    if not created_projects or len(created_projects) < 2:
+        log_test("Force Delete Project", False, "Not enough projects created to test with")
+        return
+    
+    # Use the last project to avoid affecting other tests
+    project_id = created_projects[-1]["id"]
+    
+    # Count tasks associated with this project
+    project_tasks = [task for task in created_tasks if task.get("project_id") == project_id]
+    task_count = len(project_tasks)
+    
+    try:
+        response = requests.delete(f"{BACKEND_URL}/projects/{project_id}/force")
+        if response.status_code == 200:
+            log_test("Force Delete Project", True, f"Successfully force deleted project {project_id} with {task_count} tasks")
+            
+            # Remove the project and its tasks from our lists
+            for i, project in enumerate(created_projects):
+                if project["id"] == project_id:
+                    created_projects.pop(i)
+                    break
+            
+            # Remove all tasks associated with this project
+            created_tasks[:] = [task for task in created_tasks if task.get("project_id") != project_id]
+            
+            # Verify tasks were deleted
+            response = requests.get(f"{BACKEND_URL}/tasks?project_id={project_id}")
+            if response.status_code == 200:
+                remaining_tasks = response.json()
+                if len(remaining_tasks) == 0:
+                    log_test("Force Delete Project Tasks", True, "All project tasks were deleted")
+                else:
+                    log_test("Force Delete Project Tasks", False, f"{len(remaining_tasks)} tasks still remain for the deleted project")
+        else:
+            log_test("Force Delete Project", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Force Delete Project", False, f"Exception: {str(e)}")
+
+def test_delete_user():
+    """Test deleting a user without dependencies"""
+    if not created_users or len(created_users) < 2:
+        log_test("Delete User", False, "Not enough users created to test with")
+        return
+    
+    # Find a user who is not assigned to any tasks
+    unassigned_user = None
+    for user in created_users:
+        is_assigned = False
+        for task in created_tasks:
+            if task.get("assigned_to") == user["id"]:
+                is_assigned = True
+                break
+        
+        # Also check if user is a project manager
+        is_project_manager = False
+        for project in created_projects:
+            if project.get("project_manager_id") == user["id"]:
+                is_project_manager = True
+                break
+        
+        if not is_assigned and not is_project_manager:
+            unassigned_user = user
+            break
+    
+    if not unassigned_user:
+        # Create a new user specifically for deletion
+        user_data = {
+            "name": "Temporary User",
+            "email": "temp.user@epc.com",
+            "role": "contractor",
+            "discipline": "Testing"
+        }
+        
+        try:
+            response = requests.post(f"{BACKEND_URL}/users", json=user_data)
+            if response.status_code == 200:
+                unassigned_user = response.json()
+                created_users.append(unassigned_user)
+                log_test("Create User for Deletion", True, f"Created user with ID: {unassigned_user['id']}")
+            else:
+                log_test("Create User for Deletion", False, f"Status code: {response.status_code}, Response: {response.text}")
+                return
+        except Exception as e:
+            log_test("Create User for Deletion", False, f"Exception: {str(e)}")
+            return
+    
+    try:
+        response = requests.delete(f"{BACKEND_URL}/users/{unassigned_user['id']}")
+        if response.status_code == 200:
+            log_test("Delete User", True, f"Successfully deleted user {unassigned_user['id']}")
+            
+            # Remove the user from our list
+            for i, user in enumerate(created_users):
+                if user["id"] == unassigned_user["id"]:
+                    created_users.pop(i)
+                    break
+        else:
+            log_test("Delete User", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Delete User", False, f"Exception: {str(e)}")
+
 def run_all_tests():
     """Run all tests in sequence"""
     print("\n===== STARTING EPC PROJECT MANAGEMENT BACKEND TESTS =====\n")
