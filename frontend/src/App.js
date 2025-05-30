@@ -864,17 +864,25 @@ const ProjectManagement = () => {
         <div className="mb-6">
           <div className="flex gap-2 flex-wrap">
             {projects.map(project => (
-              <button
-                key={project.id}
-                onClick={() => setSelectedProject(project)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  selectedProject?.id === project.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                {project.name}
-              </button>
+              <div key={project.id} className="flex items-center bg-gray-100 rounded-full">
+                <button
+                  onClick={() => setSelectedProject(project)}
+                  className={`px-4 py-2 rounded-l-full text-sm font-medium transition-colors ${
+                    selectedProject?.id === project.id
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {project.name}
+                </button>
+                <button
+                  onClick={() => deleteProject(project.id)}
+                  className="px-2 py-2 text-gray-400 hover:text-red-600 transition-colors rounded-r-full hover:bg-red-50"
+                  title="Delete Project"
+                >
+                  <Components.DeleteIcon className="h-4 w-4" />
+                </button>
+              </div>
             ))}
           </div>
         </div>
