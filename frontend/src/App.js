@@ -1124,7 +1124,7 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
 };
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('home');
 
   const renderPage = () => {
     switch (currentPage) {
@@ -1132,18 +1132,39 @@ function App() {
         return <TaskManagement />;
       case 'projects':
         return <ProjectManagement />;
-      default:
+      case 'dashboard':
         return <Dashboard />;
+      default:
+        return <HomePage />;
     }
   };
 
   return (
-    <div className="App min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} setCurrentPage={setCurrentPage} />
-      <main>
-        {renderPage()}
-      </main>
-    </div>
+    <BrowserRouter>
+      <div className="App min-h-screen bg-gray-50">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={
+            <>
+              <Navigation currentPage="dashboard" setCurrentPage={setCurrentPage} />
+              <main><Dashboard /></main>
+            </>
+          } />
+          <Route path="/tasks" element={
+            <>
+              <Navigation currentPage="tasks" setCurrentPage={setCurrentPage} />
+              <main><TaskManagement /></main>
+            </>
+          } />
+          <Route path="/projects" element={
+            <>
+              <Navigation currentPage="projects" setCurrentPage={setCurrentPage} />
+              <main><ProjectManagement /></main>
+            </>
+          } />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 
