@@ -797,12 +797,23 @@ def run_all_tests():
     test_filter_tasks_by_project()
     test_filter_independent_tasks()
     test_filter_tasks_by_assignee()
-    test_delete_task()
     
     # Test dashboard and kanban endpoints
     print("\n----- Testing Dashboard and Kanban Endpoints -----\n")
     test_dashboard_stats()
     test_project_kanban()
+    test_project_dashboard()
+    
+    # Test delete safety checks
+    print("\n----- Testing Delete Safety Checks -----\n")
+    test_delete_user_with_dependencies()
+    test_delete_project_with_tasks()
+    
+    # Test successful deletions
+    print("\n----- Testing Successful Deletions -----\n")
+    test_delete_task()
+    test_delete_user()
+    test_force_delete_project()
     
     # Print summary
     print("\n===== TEST SUMMARY =====")
