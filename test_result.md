@@ -413,7 +413,11 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Delete User with Dependencies Check"
+    - "Delete Project with Tasks Check"
+    - "Force Delete Project"
+    - "Project-specific Dashboard"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
