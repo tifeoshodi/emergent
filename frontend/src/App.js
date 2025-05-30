@@ -1185,7 +1185,7 @@ const ProjectManagement = () => {
       setNewTask({ 
         title: '', description: '', priority: 'medium', assigned_to: '', 
         due_date: '', estimated_hours: '', start_date: '', end_date: '', 
-        duration_days: '', is_milestone: false 
+        duration_days: '', is_milestone: false, story_points: null 
       });
       setShowCreateTask(false);
       fetchProjectData(selectedProject.id);
