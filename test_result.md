@@ -215,6 +215,54 @@ backend:
       - working: true
         agent: "testing"
         comment: "All EPC role types (PROJECT_MANAGER, ENGINEERING_MANAGER, CONTRACTOR, SENIOR_ENGINEER_1, SENIOR_ENGINEER_2, INTERMEDIATE_ENGINEER, JUNIOR_ENGINEER) are working correctly. Successfully created users with different roles."
+        
+  - task: "Delete User with Dependencies Check"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested DELETE /api/users/{user_id} endpoint. The API correctly prevents deletion of users who are assigned to tasks, returning a 400 error with a meaningful message."
+
+  - task: "Delete Project with Tasks Check"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested DELETE /api/projects/{project_id} endpoint. The API correctly prevents deletion of projects that have tasks, returning a 400 error with a meaningful message suggesting to use force delete."
+
+  - task: "Force Delete Project"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested DELETE /api/projects/{project_id}/force endpoint. The API correctly deletes the project and all associated tasks in a single operation."
+
+  - task: "Project-specific Dashboard"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested GET /api/projects/{project_id}/dashboard endpoint. The API returns project-specific stats including task counts, milestones, and progress for the specific project only."
 
 frontend:
   - task: "Dashboard Page"
