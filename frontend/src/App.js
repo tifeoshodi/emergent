@@ -1220,7 +1220,21 @@ const ProjectManagement = () => {
   const deleteTask = async (taskId) => {
     try {
       await axios.delete(`${API}/tasks/${taskId}`);
-      fetchProjectData(selectedProject.id);
+      
+      // Always refresh kanban data when task is deleted
+      if (selectedProject) {
+        const response = await axios.get(`${API}/projects/${selectedProject.id}/kanban`);
+        setKanbanData(response.data);
+        
+        // Also refresh other views if they're currently active
+        if (currentView === 'gantt') {
+          const ganttResponse = await axios.get(`${API}/projects/${selectedProject.id}/gantt`);
+          setGanttData(ganttResponse.data);
+        } else if (currentView === 'resources') {
+          const resourceResponse = await axios.get(`${API}/projects/${selectedProject.id}/resources`);
+          setResourceData(resourceResponse.data);
+        }
+      }
     } catch (error) {
       console.error('Error deleting task:', error);
       alert('Failed to delete task. Please try again.');
