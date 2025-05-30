@@ -1580,6 +1580,13 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
                 <Components.ProjectIcon className="h-4 w-4 inline mr-1" />
                 Projects
               </button>
+              <button
+                onClick={() => setCurrentPage('users')}
+                className={`nav-item ${currentPage === 'users' ? 'nav-item-active' : 'nav-item-inactive'}`}
+              >
+                <Components.UserIcon className="h-4 w-4 inline mr-1" />
+                Team
+              </button>
             </div>
           </div>
           <div className="flex items-center">
