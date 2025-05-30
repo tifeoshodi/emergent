@@ -780,6 +780,45 @@ const ProjectManagement = () => {
     }
   };
 
+  const deleteTask = async (taskId) => {
+    try {
+      await axios.delete(`${API}/tasks/${taskId}`);
+      fetchProjectData(selectedProject.id);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Failed to delete task. Please try again.');
+    }
+  };
+
+  const deleteProject = async (projectId, force = false) => {
+    try {
+      const endpoint = force ? `${API}/projects/${projectId}/force` : `${API}/projects/${projectId}`;
+      await axios.delete(endpoint);
+      
+      // Remove from state and select another project
+      const remainingProjects = projects.filter(p => p.id !== projectId);
+      setProjects(remainingProjects);
+      
+      if (selectedProject && selectedProject.id === projectId) {
+        setSelectedProject(remainingProjects.length > 0 ? remainingProjects[0] : null);
+      }
+      
+      fetchProjects(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      if (error.response && error.response.status === 400) {
+        // Project has tasks, suggest force delete
+        const errorMessage = error.response.data.detail;
+        const confirmForce = window.confirm(`${errorMessage}\n\nWould you like to force delete the project and all its tasks?`);
+        if (confirmForce) {
+          deleteProject(projectId, true);
+        }
+      } else {
+        alert('Failed to delete project. Please try again.');
+      }
+    }
+  };
+
   const renderCurrentView = () => {
     if (!selectedProject) return null;
 
