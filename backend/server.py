@@ -195,6 +195,9 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.MEDIUM
     assigned_to: Optional[str] = None
     project_id: Optional[str] = None
+    epic_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    story_points: Optional[int] = None
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     # Gantt fields
@@ -212,6 +215,9 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     priority: Optional[TaskPriority] = None
     assigned_to: Optional[str] = None
+    epic_id: Optional[str] = None
+    sprint_id: Optional[str] = None
+    story_points: Optional[int] = None
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
