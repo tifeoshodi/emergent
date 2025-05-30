@@ -1,11 +1,212 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Components from "./Components";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Home Page Component
+const HomePage = () => {
+  const [stats, setStats] = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
+
+  useEffect(() => {
+    fetchHomeData();
+  }, []);
+
+  const fetchHomeData = async () => {
+    try {
+      const [statsRes, tasksRes, projectsRes] = await Promise.all([
+        axios.get(`${API}/dashboard/stats`),
+        axios.get(`${API}/tasks`),
+        axios.get(`${API}/projects`)
+      ]);
+      
+      setStats(statsRes.data);
+      
+      // Combine recent activity from tasks and projects
+      const activity = [
+        ...tasksRes.data.slice(0, 3).map(task => ({
+          type: 'task',
+          title: task.title,
+          status: task.status,
+          created_at: task.created_at
+        })),
+        ...projectsRes.data.slice(0, 3).map(project => ({
+          type: 'project', 
+          title: project.name,
+          status: project.status,
+          created_at: project.created_at
+        }))
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+      
+      setRecentActivity(activity);
+    } catch (error) {
+      console.error('Error fetching home data:', error);
+    }
+  };
+
+  if (!stats) return <div className="flex justify-center items-center h-64">Loading...</div>;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center">
+            <h1 className="text-6xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-6">
+              PMFusion
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              The ultimate project management platform that fuses the power of Primavera P6 scheduling 
+              with Jira's agile workflows, designed specifically for EPC teams in oil & gas engineering.
+            </p>
+            <div className="flex justify-center gap-4">
+              <Link 
+                to="/dashboard" 
+                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
+              >
+                Open Dashboard
+              </Link>
+              <Link 
+                to="/projects" 
+                className="bg-white hover:bg-gray-50 text-purple-600 border-2 border-purple-600 px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
+              >
+                Manage Projects
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Platform Overview</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+          <div className="stats-card stats-card-total">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Total Projects</p>
+                  <p className="text-3xl font-bold text-white">{stats.total_projects}</p>
+                </div>
+                <Components.ProjectIcon className="h-8 w-8 text-white/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="stats-card stats-card-active">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Active Projects</p>
+                  <p className="text-3xl font-bold text-white">{stats.active_projects}</p>
+                </div>
+                <Components.ActiveIcon className="h-8 w-8 text-white/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="stats-card stats-card-tasks">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Total Tasks</p>
+                  <p className="text-3xl font-bold text-white">{stats.total_tasks}</p>
+                </div>
+                <Components.TaskIcon className="h-8 w-8 text-white/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="stats-card stats-card-completed">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Completed Tasks</p>
+                  <p className="text-3xl font-bold text-white">{stats.completed_tasks}</p>
+                </div>
+                <Components.CompleteIcon className="h-8 w-8 text-white/60" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Activity */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6">Recent Activity</h3>
+            <div className="space-y-4">
+              {recentActivity.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No recent activity</p>
+              ) : (
+                recentActivity.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center">
+                      {item.type === 'project' ? (
+                        <Components.ProjectIcon className="h-5 w-5 text-purple-600 mr-3" />
+                      ) : (
+                        <Components.TaskIcon className="h-5 w-5 text-blue-600 mr-3" />
+                      )}
+                      <div>
+                        <p className="font-medium text-gray-900">{item.title}</p>
+                        <p className="text-sm text-gray-600 capitalize">
+                          {item.type} • {item.status.replace('_', ' ')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Key Features */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6">Key Features</h3>
+            <div className="space-y-4">
+              <div className="flex items-start">
+                <Components.ChartIcon className="h-6 w-6 text-purple-600 mr-3 mt-1" />
+                <div>
+                  <h4 className="font-semibold text-gray-900">Gantt Chart Scheduling</h4>
+                  <p className="text-sm text-gray-600">Visual project timelines with critical path analysis</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <Components.TaskIcon className="h-6 w-6 text-blue-600 mr-3 mt-1" />
+                <div>
+                  <h4 className="font-semibold text-gray-900">Agile Kanban Boards</h4>
+                  <p className="text-sm text-gray-600">Flexible task management with drag-and-drop workflow</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <Components.ResourceIcon className="h-6 w-6 text-green-600 mr-3 mt-1" />
+                <div>
+                  <h4 className="font-semibold text-gray-900">Resource Management</h4>
+                  <p className="text-sm text-gray-600">Track engineer allocation and utilization across projects</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <Components.UserIcon className="h-6 w-6 text-orange-600 mr-3 mt-1" />
+                <div>
+                  <h4 className="font-semibold text-gray-900">EPC Team Structure</h4>
+                  <p className="text-sm text-gray-600">Built for engineering hierarchies and disciplines</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Dashboard Component
 const Dashboard = () => {
