@@ -13,6 +13,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 import shutil
 import aiofiles
+import sys
+
+# Add the current directory to the Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # P6 Integration imports
 from p6_service import P6Service
