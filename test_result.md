@@ -347,11 +347,11 @@ frontend:
 
   - task: "Cross-Page Navigation"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/App.js"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "testing"
@@ -359,6 +359,9 @@ frontend:
       - working: false
         agent: "testing"
         comment: "Navigation is partially working. The navbar appears consistently on all pages with PMFusion logo and EPC tag displayed correctly. Home button navigation works from all pages. Navigation from Home page to Dashboard, Projects, and Team pages works correctly. However, navigation using navbar buttons (Dashboard, Tasks, Projects, Team) doesn't work from internal pages - clicking these buttons doesn't change the page. This is a critical issue as users can't navigate between main application pages."
+      - working: true
+        agent: "testing"
+        comment: "Navigation has been fixed and is now working correctly. Home page has buttons for Dashboard, Projects, Team, and Documents that navigate to the correct pages. The main navigation bar has links for all required pages that work from any page. Active page highlighting works correctly."
 
 metadata:
   created_by: "testing_agent"
