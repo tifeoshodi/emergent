@@ -185,6 +185,66 @@ class SprintCreate(BaseModel):
     capacity_hours: Optional[float] = None
     velocity_target: Optional[int] = None
 
+class Document(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    category: DocumentCategory
+    status: DocumentStatus = DocumentStatus.DRAFT
+    project_id: Optional[str] = None  # Associated project
+    task_id: Optional[str] = None  # Associated task
+    file_name: str
+    file_size: int  # Size in bytes
+    file_type: str  # MIME type
+    file_path: str  # Storage path
+    version: str = "1.0"
+    revision: Optional[str] = None
+    discipline: Optional[str] = None  # Engineering discipline
+    document_number: Optional[str] = None  # Unique document identifier
+    created_by: str
+    reviewed_by: Optional[str] = None
+    approved_by: Optional[str] = None
+    tags: List[str] = []
+    is_confidential: bool = False
+    expiry_date: Optional[datetime] = None  # For certificates, etc.
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DocumentCreate(BaseModel):
+    title: str
+    description: str
+    category: DocumentCategory
+    project_id: Optional[str] = None
+    task_id: Optional[str] = None
+    file_name: str
+    file_size: int
+    file_type: str
+    file_path: str
+    version: str = "1.0"
+    revision: Optional[str] = None
+    discipline: Optional[str] = None
+    document_number: Optional[str] = None
+    tags: List[str] = []
+    is_confidential: bool = False
+    expiry_date: Optional[datetime] = None
+
+class DocumentUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[DocumentCategory] = None
+    status: Optional[DocumentStatus] = None
+    project_id: Optional[str] = None
+    task_id: Optional[str] = None
+    version: Optional[str] = None
+    revision: Optional[str] = None
+    discipline: Optional[str] = None
+    document_number: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    approved_by: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_confidential: Optional[bool] = None
+    expiry_date: Optional[datetime] = None
+
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
