@@ -1420,6 +1420,12 @@ async def get_sync_history(limit: int = 10):
     """Get P6 sync history"""
     try:
         sync_results = await db.p6_sync_results.find().sort("started_at", -1).limit(limit).to_list(limit)
+        
+        # Convert MongoDB ObjectId to string
+        for result in sync_results:
+            if "_id" in result:
+                result["_id"] = str(result["_id"])
+        
         return {
             "status": "success",
             "sync_history": sync_results,
