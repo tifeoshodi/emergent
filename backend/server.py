@@ -35,6 +35,9 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Initialize P6 Service
+p6_service = P6Service(db)
+
 # Root endpoint for API health check
 @api_router.get("/")
 async def api_health():
