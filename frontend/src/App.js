@@ -1669,6 +1669,8 @@ function App() {
         return <Dashboard />;
       case 'users':
         return <UserManagement />;
+      case 'documents':
+        return <Components.DocumentManagement />;
       default:
         return <HomePage />;
     }
