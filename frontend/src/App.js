@@ -88,6 +88,12 @@ const HomePage = () => {
               >
                 Documents
               </Link>
+              <Link 
+                to="/p6-integration" 
+                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
+              >
+                P6 Integration
+              </Link>
             </div>
           </div>
         </div>
