@@ -82,6 +82,12 @@ const HomePage = () => {
               >
                 Manage Team
               </Link>
+              <Link 
+                to="/documents" 
+                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
+              >
+                Documents
+              </Link>
             </div>
           </div>
         </div>
