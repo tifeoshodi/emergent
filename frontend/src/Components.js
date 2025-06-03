@@ -1133,6 +1133,515 @@ const DocumentManagement = ({ projectId = null, showProjectFilter = true }) => {
     </div>
   );
 };
+
+// Document Management Component
+const DocumentManagement = ({ projectId = null, showProjectFilter = true }) => {
+  const [documents, setDocuments] = useState([]);
+  const [filteredDocuments, setFilteredDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [filters, setFilters] = useState({
+    category: '',
+    status: '',
+    discipline: '',
+    search: ''
+  });
+  const [uploadData, setUploadData] = useState({
+    title: '',
+    description: '',
+    category: '',
+    discipline: '',
+    document_number: '',
+    is_confidential: false,
+    tags: '',
+    project_id: projectId
+  });
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  // EPC Document Categories
+  const documentCategories = [
+    { value: 'engineering_drawing', label: 'Engineering Drawing' },
+    { value: 'piping_drawing', label: 'P&ID Drawing' },
+    { value: 'electrical_drawing', label: 'Electrical Drawing' },
+    { value: 'instrument_drawing', label: 'Instrument Drawing' },
+    { value: 'technical_specification', label: 'Technical Specification' },
+    { value: 'project_report', label: 'Project Report' },
+    { value: 'safety_document', label: 'Safety Document' },
+    { value: 'compliance_document', label: 'Compliance Document' },
+    { value: 'meeting_minutes', label: 'Meeting Minutes' },
+    { value: 'vendor_document', label: 'Vendor Document' },
+    { value: 'as_built_document', label: 'As-Built Document' },
+    { value: 'procedure', label: 'Procedure' },
+    { value: 'manual', label: 'Manual' },
+    { value: 'certificate', label: 'Certificate' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const documentStatuses = [
+    { value: 'draft', label: 'Draft' },
+    { value: 'under_review', label: 'Under Review' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'superseded', label: 'Superseded' },
+    { value: 'archived', label: 'Archived' }
+  ];
+
+  const disciplines = [
+    'Mechanical Engineering',
+    'Electrical Engineering',
+    'Process Engineering',
+    'Civil Engineering',
+    'Instrumentation & Control',
+    'Piping Engineering',
+    'Safety Engineering',
+    'Environmental Engineering'
+  ];
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [projectId]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [documents, filters]);
+
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (projectId) params.append('project_id', projectId);
+      
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/documents?${params}`);
+      const data = await response.json();
+      setDocuments(data);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...documents];
+
+    if (filters.category) {
+      filtered = filtered.filter(doc => doc.category === filters.category);
+    }
+    if (filters.status) {
+      filtered = filtered.filter(doc => doc.status === filters.status);
+    }
+    if (filters.discipline) {
+      filtered = filtered.filter(doc => doc.discipline === filters.discipline);
+    }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(doc => 
+        doc.title.toLowerCase().includes(searchLower) ||
+        doc.description.toLowerCase().includes(searchLower) ||
+        doc.document_number?.toLowerCase().includes(searchLower) ||
+        doc.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+    }
+
+    setFilteredDocuments(filtered);
+  };
+
+  const handleFileSelect = (event) => {
+    setSelectedFile(event.target.files[0]);
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      alert('Please select a file to upload');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('title', uploadData.title);
+    formData.append('description', uploadData.description);
+    formData.append('category', uploadData.category);
+    if (uploadData.project_id) formData.append('project_id', uploadData.project_id);
+    if (uploadData.discipline) formData.append('discipline', uploadData.discipline);
+    if (uploadData.document_number) formData.append('document_number', uploadData.document_number);
+    formData.append('is_confidential', uploadData.is_confidential);
+    formData.append('tags', uploadData.tags);
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/documents/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        setShowUploadModal(false);
+        setUploadData({
+          title: '', description: '', category: '', discipline: '', 
+          document_number: '', is_confidential: false, tags: '', project_id: projectId
+        });
+        setSelectedFile(null);
+        fetchDocuments();
+      } else {
+        const error = await response.json();
+        alert(`Upload failed: ${error.detail}`);
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert('Upload failed. Please try again.');
+    }
+  };
+
+  const handleDownload = async (documentId, fileName) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/documents/${documentId}/download`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      alert('Download failed. Please try again.');
+    }
+  };
+
+  const handleStatusUpdate = async (documentId, newStatus) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/documents/${documentId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        fetchDocuments();
+      }
+    } catch (error) {
+      console.error('Error updating document status:', error);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'draft': return 'bg-gray-100 text-gray-800';
+      case 'under_review': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'superseded': return 'bg-orange-100 text-orange-800';
+      case 'archived': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getCategoryColor = (category) => {
+    switch (category) {
+      case 'engineering_drawing': return 'bg-purple-100 text-purple-800';
+      case 'safety_document': return 'bg-red-100 text-red-800';
+      case 'compliance_document': return 'bg-indigo-100 text-indigo-800';
+      default: return 'bg-blue-100 text-blue-800';
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Document Management</h1>
+          <p className="text-gray-600">Manage engineering documents, drawings, and compliance files</p>
+        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+        >
+          <UploadIcon className="h-5 w-5 inline mr-2" />
+          Upload Document
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search documents..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          <select
+            value={filters.category}
+            onChange={(e) => setFilters({...filters, category: e.target.value})}
+            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+            <option value="">All Categories</option>
+            {documentCategories.map(cat => (
+              <option key={cat.value} value={cat.value}>{cat.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({...filters, status: e.target.value})}
+            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+            <option value="">All Statuses</option>
+            {documentStatuses.map(status => (
+              <option key={status.value} value={status.value}>{status.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.discipline}
+            onChange={(e) => setFilters({...filters, discipline: e.target.value})}
+            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+            <option value="">All Disciplines</option>
+            {disciplines.map(discipline => (
+              <option key={discipline} value={discipline}>{discipline}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={() => setFilters({ category: '', status: '', discipline: '', search: '' })}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Documents Grid */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500">Loading documents...</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDocuments.map(document => (
+            <div key={document.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-4">
+                <DocumentIcon className="h-8 w-8 text-purple-600 flex-shrink-0" />
+                <div className="flex gap-2">
+                  {document.is_confidential && (
+                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                      Confidential
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{document.title}</h3>
+              <p className="text-sm text-gray-600 mb-4 line-clamp-2">{document.description}</p>
+
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(document.category)}`}>
+                    {documentCategories.find(c => c.value === document.category)?.label || document.category}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(document.status)}`}>
+                    {documentStatuses.find(s => s.value === document.status)?.label || document.status}
+                  </span>
+                </div>
+
+                {document.discipline && (
+                  <div className="text-sm text-gray-600">
+                    <strong>Discipline:</strong> {document.discipline}
+                  </div>
+                )}
+
+                {document.document_number && (
+                  <div className="text-sm text-gray-600">
+                    <strong>Doc #:</strong> {document.document_number}
+                  </div>
+                )}
+
+                <div className="text-sm text-gray-600">
+                  <strong>Size:</strong> {formatFileSize(document.file_size)} • <strong>Version:</strong> {document.version}
+                </div>
+
+                {document.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {document.tags.slice(0, 3).map((tag, index) => (
+                      <span key={index} className="px-2 py-1 bg-gray-100 text-xs rounded">
+                        {tag}
+                      </span>
+                    ))}
+                    {document.tags.length > 3 && (
+                      <span className="px-2 py-1 bg-gray-100 text-xs rounded">
+                        +{document.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleDownload(document.id, document.file_name)}
+                  className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-2 px-3 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <DownloadIcon className="h-4 w-4 inline mr-1" />
+                  Download
+                </button>
+
+                {document.status !== 'approved' && (
+                  <button
+                    onClick={() => handleStatusUpdate(document.id, 'approved')}
+                    className="bg-green-100 hover:bg-green-200 text-green-700 py-2 px-3 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <ApprovalIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-3 text-xs text-gray-500">
+                Created: {new Date(document.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {filteredDocuments.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <DocumentIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Found</h3>
+          <p className="text-gray-600 mb-4">
+            {documents.length === 0 ? "Upload your first document to get started" : "Try adjusting your filters"}
+          </p>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl m-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-4">Upload Document</h3>
+            <form onSubmit={handleUpload} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Document Title"
+                  value={uploadData.title}
+                  onChange={(e) => setUploadData({...uploadData, title: e.target.value})}
+                  className="col-span-2 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required
+                />
+
+                <textarea
+                  placeholder="Description"
+                  value={uploadData.description}
+                  onChange={(e) => setUploadData({...uploadData, description: e.target.value})}
+                  className="col-span-2 w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24"
+                  required
+                />
+
+                <select
+                  value={uploadData.category}
+                  onChange={(e) => setUploadData({...uploadData, category: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {documentCategories.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={uploadData.discipline}
+                  onChange={(e) => setUploadData({...uploadData, discipline: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Select Discipline (Optional)</option>
+                  {disciplines.map(discipline => (
+                    <option key={discipline} value={discipline}>{discipline}</option>
+                  ))}
+                </select>
+
+                <input
+                  type="text"
+                  placeholder="Document Number (Optional)"
+                  value={uploadData.document_number}
+                  onChange={(e) => setUploadData({...uploadData, document_number: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+
+                <input
+                  type="text"
+                  placeholder="Tags (comma-separated)"
+                  value={uploadData.tags}
+                  onChange={(e) => setUploadData({...uploadData, tags: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+
+                <div className="col-span-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={uploadData.is_confidential}
+                      onChange={(e) => setUploadData({...uploadData, is_confidential: e.target.checked})}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Mark as Confidential</span>
+                  </label>
+                </div>
+
+                <div className="col-span-2">
+                  <input
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                  {selectedFile && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-medium transition-colors"
+                >
+                  Upload Document
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const DragDropKanbanBoard = ({ kanbanData, users, epics = [], sprints = [], onStatusChange, onDelete, onDragEnd }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
