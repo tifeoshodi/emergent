@@ -2316,6 +2316,12 @@ function App() {
             <main><DocumentManagementPage /></main>
           </>
         } />
+        <Route path="/p6-integration" element={
+          <>
+            <Navigation currentPage="p6-integration" setCurrentPage={setCurrentPage} />
+            <main><P6Integration /></main>
+          </>
+        } />
       </Routes>
     </div>
   );
