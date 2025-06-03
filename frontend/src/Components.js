@@ -1134,7 +1134,7 @@ const DocumentManagement = ({ projectId = null, showProjectFilter = true }) => {
   );
 };
 
-// Document Management Component
+// Document Management Component V2
 const DocumentManagementV2 = ({ projectId = null, showProjectFilter = true }) => {
   const [documents, setDocuments] = useState([]);
   const [filteredDocuments, setFilteredDocuments] = useState([]);
