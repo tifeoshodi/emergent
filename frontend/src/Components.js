@@ -1916,6 +1916,12 @@ const Components = {
   SprintIcon,
   StoryPointIcon,
   BurndownIcon,
+  DocumentIcon,
+  UploadIcon,
+  DownloadIcon,
+  SearchIcon,
+  FilterIcon,
+  ApprovalIcon,
   PriorityBadge,
   StatusBadge,
   StoryPointBadge,
@@ -1925,6 +1931,7 @@ const Components = {
   TaskCard,
   GanttChart,
   ResourceManagement,
+  DocumentManagement,
   DragDropKanbanBoard,
   DeleteConfirmModal
 };
