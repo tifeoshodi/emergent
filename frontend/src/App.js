@@ -1594,7 +1594,96 @@ const ProjectManagement = () => {
   );
 };
 
-// Main App Navigation
+// Document Management Component
+const DocumentManagement = () => {
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  const documentCategories = [
+    { value: 'engineering_drawing', label: 'Engineering Drawing' },
+    { value: 'safety_document', label: 'Safety Document' },
+    { value: 'compliance_document', label: 'Compliance Document' },
+    { value: 'project_report', label: 'Project Report' },
+    { value: 'technical_specification', label: 'Technical Specification' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  useEffect(() => {
+    // For now, show placeholder content
+    setDocuments([]);
+  }, []);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Document Management</h1>
+          <p className="text-gray-600">Manage engineering documents, drawings, and compliance files</p>
+        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+        >
+          <Components.UploadIcon className="h-5 w-5 inline mr-2" />
+          Upload Document
+        </button>
+      </div>
+
+      {/* Coming Soon Message */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+        <Components.DocumentIcon className="mx-auto h-16 w-16 text-purple-600 mb-6" />
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Document Management System</h2>
+        <div className="max-w-2xl mx-auto text-gray-600 space-y-4">
+          <p className="text-lg">
+            Complete document management system for EPC teams with support for:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div className="bg-purple-50 p-4 rounded-xl">
+              <h3 className="font-semibold text-purple-900 mb-2">📋 Document Categories</h3>
+              <ul className="text-sm text-purple-700 space-y-1">
+                <li>• Engineering Drawings (P&IDs)</li>
+                <li>• Technical Specifications</li>
+                <li>• Safety Documents</li>
+                <li>• Compliance Files</li>
+              </ul>
+            </div>
+            <div className="bg-green-50 p-4 rounded-xl">
+              <h3 className="font-semibold text-green-900 mb-2">🔧 Features</h3>
+              <ul className="text-sm text-green-700 space-y-1">
+                <li>• File Upload/Download</li>
+                <li>• Version Control</li>
+                <li>• Approval Workflows</li>
+                <li>• Search & Filtering</li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-8 p-4 bg-yellow-50 rounded-xl">
+            <p className="text-yellow-800 font-medium">
+              🚀 Backend system fully implemented! Frontend interface coming in next update.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Upload Modal Placeholder */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md m-4">
+            <h3 className="text-xl font-semibold mb-4">Document Upload</h3>
+            <p className="text-gray-600 mb-4">Document upload functionality will be available in the next update!</p>
+            <button
+              onClick={() => setShowUploadModal(false)}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-medium transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 const Navigation = ({ currentPage, setCurrentPage }) => {
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
