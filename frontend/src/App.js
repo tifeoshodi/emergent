@@ -1765,7 +1765,7 @@ function App() {
       case 'users':
         return <UserManagement />;
       case 'documents':
-        return <DocumentManagement />;
+        return <DocumentManagementPage />;
       default:
         return <HomePage />;
     }
