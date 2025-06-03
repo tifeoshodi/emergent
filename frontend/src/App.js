@@ -1702,6 +1702,12 @@ function App() {
             <main><UserManagement /></main>
           </>
         } />
+        <Route path="/documents" element={
+          <>
+            <Navigation currentPage="documents" setCurrentPage={setCurrentPage} />
+            <main><Components.DocumentManagement /></main>
+          </>
+        } />
       </Routes>
     </div>
   );
