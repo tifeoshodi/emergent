@@ -5,15 +5,8 @@ from datetime import datetime
 
 # Get Backend URL from frontend/.env
 def get_backend_url():
-    try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.strip().split('=')[1].strip('"\'') + '/api'
-    except Exception as e:
-        print(f"Error reading .env file: {e}")
-        # Fallback to localhost
-        return "http://localhost:8001/api"
+    # Use localhost directly for testing
+    return "http://localhost:8001/api"
 
 BACKEND_URL = get_backend_url()
 print(f"Using backend URL: {BACKEND_URL}")
