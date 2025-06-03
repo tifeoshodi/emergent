@@ -1802,7 +1802,7 @@ function App() {
         <Route path="/documents" element={
           <>
             <Navigation currentPage="documents" setCurrentPage={setCurrentPage} />
-            <main><DocumentManagement /></main>
+            <main><DocumentManagementPage /></main>
           </>
         } />
       </Routes>
