@@ -1238,6 +1238,243 @@ async def get_document_analytics(project_id: Optional[str] = None):
         "by_status": {stat["_id"]: stat for stat in status_stats}
     }
 
+# =============================================================================
+# P6 INTEGRATION ENDPOINTS
+# =============================================================================
+
+@api_router.get("/p6/connection/test")
+async def test_p6_connection():
+    """Test P6 connection and return status"""
+    try:
+        connection_test = await p6_service.test_connection()
+        return connection_test
+    except Exception as e:
+        logger.error(f"P6 connection test failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Connection test failed: {str(e)}",
+            "error": str(e)
+        }
+
+@api_router.post("/p6/connection/configure")
+async def configure_p6_connection(config: P6ConnectionConfig):
+    """Configure P6 connection (for future use)"""
+    try:
+        # Store configuration securely (in production, use encrypted storage)
+        config_doc = {
+            "host": config.host,
+            "username": config.username,
+            "use_mock": config.use_mock,
+            "timeout": config.timeout,
+            "configured_at": datetime.utcnow(),
+            "configured_by": "admin"  # TODO: Get from auth
+        }
+        
+        # Don't store sensitive credentials in database in production
+        await db.p6_config.replace_one({}, config_doc, upsert=True)
+        
+        return {
+            "status": "success",
+            "message": "P6 connection configured successfully",
+            "host": config.host,
+            "mock_mode": config.use_mock
+        }
+    except Exception as e:
+        logger.error(f"P6 configuration failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Configuration failed: {str(e)}"
+        }
+
+@api_router.get("/p6/projects")
+async def get_p6_projects():
+    """Get projects directly from P6"""
+    try:
+        projects = await p6_service.p6_client.get_projects()
+        return {
+            "status": "success",
+            "projects": projects,
+            "count": len(projects)
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch P6 projects: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch P6 projects: {str(e)}",
+            "projects": [],
+            "count": 0
+        }
+
+@api_router.get("/p6/projects/{project_id}/activities")
+async def get_p6_project_activities(project_id: int):
+    """Get activities for a specific P6 project"""
+    try:
+        activities = await p6_service.p6_client.get_project_activities(project_id)
+        return {
+            "status": "success",
+            "activities": activities,
+            "count": len(activities),
+            "project_id": project_id
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch P6 activities for project {project_id}: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch activities: {str(e)}",
+            "activities": [],
+            "count": 0,
+            "project_id": project_id
+        }
+
+@api_router.get("/p6/resources")
+async def get_p6_resources():
+    """Get resources directly from P6"""
+    try:
+        resources = await p6_service.p6_client.get_resources()
+        return {
+            "status": "success",
+            "resources": resources,
+            "count": len(resources)
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch P6 resources: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch P6 resources: {str(e)}",
+            "resources": [],
+            "count": 0
+        }
+
+@api_router.post("/p6/sync")
+async def sync_from_p6(sync_request: SyncRequest):
+    """Sync data from P6 to PMFusion"""
+    try:
+        logger.info(f"Starting P6 sync with request: {sync_request}")
+        
+        # Start the sync process
+        sync_result = await p6_service.sync_from_p6(sync_request)
+        
+        return {
+            "status": "success",
+            "message": "P6 sync completed",
+            "sync_result": sync_result.dict()
+        }
+    except Exception as e:
+        logger.error(f"P6 sync failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"P6 sync failed: {str(e)}",
+            "sync_result": None
+        }
+
+@api_router.post("/p6/export")
+async def export_to_p6(export_request: PMFusionToP6Export):
+    """Export PMFusion project to P6"""
+    try:
+        logger.info(f"Starting P6 export for project: {export_request.project_id}")
+        
+        result = await p6_service.export_to_p6(export_request)
+        
+        return {
+            "status": "success",
+            "message": "PMFusion project exported to P6",
+            "export_result": result
+        }
+    except Exception as e:
+        logger.error(f"P6 export failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"P6 export failed: {str(e)}",
+            "export_result": None
+        }
+
+@api_router.get("/p6/status")
+async def get_p6_status():
+    """Get P6 integration status and analytics"""
+    try:
+        status = await p6_service.get_sync_status()
+        return {
+            "status": "success",
+            "p6_status": status
+        }
+    except Exception as e:
+        logger.error(f"Failed to get P6 status: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to get P6 status: {str(e)}",
+            "p6_status": None
+        }
+
+@api_router.get("/p6/sync/history")
+async def get_sync_history(limit: int = 10):
+    """Get P6 sync history"""
+    try:
+        sync_results = await db.p6_sync_results.find().sort("started_at", -1).limit(limit).to_list(limit)
+        return {
+            "status": "success",
+            "sync_history": sync_results,
+            "count": len(sync_results)
+        }
+    except Exception as e:
+        logger.error(f"Failed to get sync history: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to get sync history: {str(e)}",
+            "sync_history": [],
+            "count": 0
+        }
+
+@api_router.post("/p6/activities/{activity_id}/progress")
+async def update_p6_activity_progress(activity_id: int, progress_data: dict):
+    """Update activity progress in P6"""
+    try:
+        percent_complete = progress_data.get("percent_complete", 0)
+        
+        result = await p6_service.p6_client.update_activity_progress(activity_id, percent_complete)
+        
+        return {
+            "status": "success",
+            "message": f"Activity {activity_id} progress updated to {percent_complete}%",
+            "result": result
+        }
+    except Exception as e:
+        logger.error(f"Failed to update P6 activity progress: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to update activity progress: {str(e)}"
+        }
+
+@api_router.get("/p6/mapping/preview")
+async def preview_p6_mapping():
+    """Preview P6 to PMFusion data mapping"""
+    try:
+        # Get sample P6 data
+        sample_projects = await p6_service.p6_client.get_projects()
+        sample_activities = []
+        if sample_projects:
+            sample_activities = await p6_service.p6_client.get_project_activities(sample_projects[0]["ObjectId"])
+        
+        # Show mapping examples
+        mapping_preview = {
+            "project_mappings": p6_service.data_mapping.project_mappings,
+            "activity_mappings": p6_service.data_mapping.activity_mappings,
+            "status_mappings": p6_service.data_mapping.status_mappings,
+            "priority_mappings": p6_service.data_mapping.priority_mappings,
+            "sample_p6_project": sample_projects[0] if sample_projects else None,
+            "sample_p6_activity": sample_activities[0] if sample_activities else None
+        }
+        
+        return {
+            "status": "success",
+            "mapping_preview": mapping_preview
+        }
+    except Exception as e:
+        logger.error(f"Failed to generate mapping preview: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to generate mapping preview: {str(e)}"
+        }
+
 # Include the router in the main app
 app.include_router(api_router)
 
