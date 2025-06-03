@@ -1595,7 +1595,7 @@ const ProjectManagement = () => {
 };
 
 // Document Management Component
-const DocumentManagement = () => {
+const DocumentManagementPage = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
