@@ -1002,6 +1002,232 @@ def calculate_burndown_data(tasks, start_date, end_date):
     
     return burndown_data
 
+# Document Management endpoints
+@api_router.post("/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(...),
+    category: str = Form(...),
+    project_id: Optional[str] = Form(None),
+    task_id: Optional[str] = Form(None),
+    discipline: Optional[str] = Form(None),
+    document_number: Optional[str] = Form(None),
+    is_confidential: bool = Form(False),
+    tags: str = Form("")  # Comma-separated tags
+):
+    try:
+        # Create documents directory if it doesn't exist
+        documents_dir = ROOT_DIR / "documents"
+        documents_dir.mkdir(exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else ''
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        file_path = documents_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Get file size
+        file_size = file_path.stat().st_size
+        
+        # Parse tags
+        tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()] if tags else []
+        
+        # Create document record
+        document_data = {
+            "title": title,
+            "description": description,
+            "category": category,
+            "project_id": project_id,
+            "task_id": task_id,
+            "file_name": file.filename,
+            "file_size": file_size,
+            "file_type": file.content_type,
+            "file_path": str(file_path),
+            "discipline": discipline,
+            "document_number": document_number,
+            "created_by": "default_user",  # TODO: Get from auth
+            "tags": tag_list,
+            "is_confidential": is_confidential
+        }
+        
+        document_obj = Document(**document_data)
+        await db.documents.insert_one(document_obj.dict())
+        
+        return document_obj
+        
+    except Exception as e:
+        # Clean up file if document creation failed
+        if 'file_path' in locals() and file_path.exists():
+            file_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
+
+@api_router.get("/documents", response_model=List[Document])
+async def get_documents(
+    project_id: Optional[str] = None,
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    discipline: Optional[str] = None,
+    search: Optional[str] = None
+):
+    query = {}
+    
+    if project_id:
+        query["project_id"] = project_id
+    if category:
+        query["category"] = category
+    if status:
+        query["status"] = status
+    if discipline:
+        query["discipline"] = discipline
+    
+    # Add text search
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"document_number": {"$regex": search, "$options": "i"}},
+            {"tags": {"$in": [{"$regex": search, "$options": "i"}]}}
+        ]
+    
+    documents = await db.documents.find(query).to_list(1000)
+    return [Document(**doc) for doc in documents]
+
+@api_router.get("/documents/{document_id}", response_model=Document)
+async def get_document(document_id: str):
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return Document(**document)
+
+@api_router.get("/documents/{document_id}/download")
+async def download_document(document_id: str):
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    file_path = Path(document["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file_path,
+        filename=document["file_name"],
+        media_type=document["file_type"]
+    )
+
+@api_router.put("/documents/{document_id}", response_model=Document)
+async def update_document(document_id: str, document_update: DocumentUpdate):
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    update_data = {k: v for k, v in document_update.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.utcnow()
+    
+    await db.documents.update_one({"id": document_id}, {"$set": update_data})
+    
+    updated_document = await db.documents.find_one({"id": document_id})
+    return Document(**updated_document)
+
+@api_router.put("/documents/{document_id}/status")
+async def update_document_status(document_id: str, status_update: dict):
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    new_status = status_update.get("status")
+    reviewed_by = status_update.get("reviewed_by")
+    approved_by = status_update.get("approved_by")
+    
+    update_data = {"updated_at": datetime.utcnow()}
+    
+    if new_status:
+        update_data["status"] = new_status
+    if reviewed_by:
+        update_data["reviewed_by"] = reviewed_by
+    if approved_by:
+        update_data["approved_by"] = approved_by
+    
+    await db.documents.update_one({"id": document_id}, {"$set": update_data})
+    
+    updated_document = await db.documents.find_one({"id": document_id})
+    return Document(**updated_document)
+
+@api_router.delete("/documents/{document_id}")
+async def delete_document(document_id: str):
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete file from disk
+    file_path = Path(document["file_path"])
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Delete document record
+    result = await db.documents.delete_one({"id": document_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": "Document deleted successfully"}
+
+# Document analytics
+@api_router.get("/documents/analytics/summary")
+async def get_document_analytics(project_id: Optional[str] = None):
+    query = {}
+    if project_id:
+        query["project_id"] = project_id
+    
+    # Get document counts by category
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$category",
+            "count": {"$sum": 1},
+            "total_size": {"$sum": "$file_size"}
+        }}
+    ]
+    
+    category_stats = await db.documents.aggregate(pipeline).to_list(100)
+    
+    # Get document counts by status
+    status_pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$status", 
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_stats = await db.documents.aggregate(status_pipeline).to_list(100)
+    
+    # Get total counts
+    total_documents = await db.documents.count_documents(query)
+    
+    # Calculate total storage size
+    size_pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": None,
+            "total_size": {"$sum": "$file_size"}
+        }}
+    ]
+    
+    size_result = await db.documents.aggregate(size_pipeline).to_list(1)
+    total_size = size_result[0]["total_size"] if size_result else 0
+    
+    return {
+        "total_documents": total_documents,
+        "total_size_bytes": total_size,
+        "total_size_mb": round(total_size / (1024 * 1024), 2),
+        "by_category": {stat["_id"]: stat for stat in category_stats},
+        "by_status": {stat["_id"]: stat for stat in status_stats}
+    }
+
 # Include the router in the main app
 app.include_router(api_router)
 
