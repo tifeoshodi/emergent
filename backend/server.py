@@ -1397,6 +1397,12 @@ async def get_p6_status():
     """Get P6 integration status and analytics"""
     try:
         status = await p6_service.get_sync_status()
+        
+        # Convert MongoDB ObjectId to string if present
+        if "last_sync" in status and status["last_sync"]:
+            if "_id" in status["last_sync"]:
+                status["last_sync"]["_id"] = str(status["last_sync"]["_id"])
+        
         return {
             "status": "success",
             "p6_status": status
