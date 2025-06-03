@@ -2245,6 +2245,13 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
               </button>
+              <button
+                onClick={() => setCurrentPage('p6-integration')}
+                className={`nav-item ${currentPage === 'p6-integration' ? 'nav-item-active' : 'nav-item-inactive'}`}
+              >
+                <Components.SyncIcon className="h-4 w-4 inline mr-1" />
+                P6 Integration
+              </button>
             </div>
           </div>
           <div className="flex items-center">
