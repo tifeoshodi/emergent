@@ -14,6 +14,13 @@ from enum import Enum
 import shutil
 import aiofiles
 
+# P6 Integration imports
+from p6_service import P6Service
+from p6_models import (
+    SyncRequest, SyncResult, PMFusionToP6Export, P6ImportRequest,
+    P6ConnectionConfig, P6ConnectionTest
+)
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
