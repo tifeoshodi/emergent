@@ -1998,6 +1998,13 @@ const Components = {
   SearchIcon,
   FilterIcon,
   ApprovalIcon,
+  // P6 Integration Icons
+  SyncIcon,
+  MappingIcon,
+  ExportIcon,
+  SettingsIcon,
+  DashboardIcon,
+  ArrowRightIcon,
   PriorityBadge,
   StatusBadge,
   StoryPointBadge,
