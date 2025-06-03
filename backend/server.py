@@ -71,6 +71,30 @@ class EpicStatus(str, Enum):
     DONE = "done"
     CANCELLED = "cancelled"
 
+class DocumentStatus(str, Enum):
+    DRAFT = "draft"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    SUPERSEDED = "superseded"
+    ARCHIVED = "archived"
+
+class DocumentCategory(str, Enum):
+    ENGINEERING_DRAWING = "engineering_drawing"
+    PIPING_DRAWING = "piping_drawing"
+    ELECTRICAL_DRAWING = "electrical_drawing"
+    INSTRUMENT_DRAWING = "instrument_drawing"
+    TECHNICAL_SPECIFICATION = "technical_specification"
+    PROJECT_REPORT = "project_report"
+    SAFETY_DOCUMENT = "safety_document"
+    COMPLIANCE_DOCUMENT = "compliance_document"
+    MEETING_MINUTES = "meeting_minutes"
+    VENDOR_DOCUMENT = "vendor_document"
+    AS_BUILT_DOCUMENT = "as_built_document"
+    PROCEDURE = "procedure"
+    MANUAL = "manual"
+    CERTIFICATE = "certificate"
+    OTHER = "other"
+
 # Models
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
