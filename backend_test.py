@@ -1458,6 +1458,339 @@ def test_agile_workflow():
         return
     
     # 1. Create a new project for agile workflow testing
+
+# Document Management System Tests
+# Store created documents
+created_documents = []
+
+def test_document_upload():
+    """Test uploading documents with different file types and categories"""
+    if not created_projects or not created_users:
+        log_test("Document Upload", False, "No projects or users created to test with")
+        return
+    
+    # Test files with different types
+    test_files = [
+        ("/app/test_document.pdf", "application/pdf"),
+        ("/app/test_document.doc", "application/msword"),
+        ("/app/test_document.dwg", "application/acad"),
+        ("/app/test_document.xls", "application/vnd.ms-excel")
+    ]
+    
+    # Test different document categories
+    categories = [
+        "engineering_drawing",
+        "piping_drawing",
+        "electrical_drawing",
+        "technical_specification",
+        "safety_document",
+        "compliance_document"
+    ]
+    
+    # Test different disciplines
+    disciplines = ["Mechanical", "Electrical", "Process", "Civil", "Instrumentation"]
+    
+    for i, (file_path, content_type) in enumerate(test_files):
+        # Select a category and discipline for this file
+        category = categories[i % len(categories)]
+        discipline = disciplines[i % len(disciplines)]
+        
+        # Create document metadata
+        document_number = f"DOC-{uuid.uuid4().hex[:8]}"
+        is_confidential = i % 2 == 0  # Every other document is confidential
+        
+        # Create tags
+        tags = f"tag1,tag2,test,{category}"
+        
+        try:
+            with open(file_path, 'rb') as file:
+                files = {'file': (os.path.basename(file_path), file, content_type)}
+                data = {
+                    'title': f"Test Document {i+1}",
+                    'description': f"This is a test {category} document",
+                    'category': category,
+                    'project_id': created_projects[0]["id"] if i % 2 == 0 else None,  # Associate every other document with a project
+                    'discipline': discipline,
+                    'document_number': document_number,
+                    'is_confidential': str(is_confidential),
+                    'tags': tags
+                }
+                
+                response = requests.post(f"{BACKEND_URL}/documents/upload", files=files, data=data)
+                
+                if response.status_code == 200:
+                    document = response.json()
+                    created_documents.append(document)
+                    log_test(f"Upload Document: {data['title']}", True, 
+                             f"Uploaded document with ID: {document['id']}, Category: {category}, Type: {content_type}")
+                else:
+                    log_test(f"Upload Document: {data['title']}", False, 
+                             f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Upload Document: {file_path}", False, f"Exception: {str(e)}")
+
+def test_get_documents():
+    """Test retrieving all documents and filtering by various criteria"""
+    # Test getting all documents
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents")
+        if response.status_code == 200:
+            documents = response.json()
+            log_test("Get All Documents", True, f"Retrieved {len(documents)} documents")
+        else:
+            log_test("Get All Documents", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get All Documents", False, f"Exception: {str(e)}")
+    
+    # Test filtering by project
+    if created_projects:
+        project_id = created_projects[0]["id"]
+        try:
+            response = requests.get(f"{BACKEND_URL}/documents?project_id={project_id}")
+            if response.status_code == 200:
+                documents = response.json()
+                log_test("Filter Documents by Project", True, f"Retrieved {len(documents)} documents for project {project_id}")
+            else:
+                log_test("Filter Documents by Project", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test("Filter Documents by Project", False, f"Exception: {str(e)}")
+    
+    # Test filtering by category
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents?category=engineering_drawing")
+        if response.status_code == 200:
+            documents = response.json()
+            log_test("Filter Documents by Category", True, f"Retrieved {len(documents)} engineering drawing documents")
+        else:
+            log_test("Filter Documents by Category", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Filter Documents by Category", False, f"Exception: {str(e)}")
+    
+    # Test filtering by discipline
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents?discipline=Mechanical")
+        if response.status_code == 200:
+            documents = response.json()
+            log_test("Filter Documents by Discipline", True, f"Retrieved {len(documents)} Mechanical discipline documents")
+        else:
+            log_test("Filter Documents by Discipline", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Filter Documents by Discipline", False, f"Exception: {str(e)}")
+    
+    # Test search functionality
+    try:
+        search_term = "test"
+        response = requests.get(f"{BACKEND_URL}/documents?search={search_term}")
+        if response.status_code == 200:
+            documents = response.json()
+            log_test("Search Documents", True, f"Found {len(documents)} documents matching '{search_term}'")
+        else:
+            log_test("Search Documents", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Search Documents", False, f"Exception: {str(e)}")
+
+def test_get_document_by_id():
+    """Test getting a document by ID"""
+    if not created_documents:
+        log_test("Get Document by ID", False, "No documents created to test with")
+        return
+    
+    document_id = created_documents[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents/{document_id}")
+        if response.status_code == 200:
+            document = response.json()
+            log_test("Get Document by ID", True, f"Retrieved document: {document['title']}")
+        else:
+            log_test("Get Document by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Get Document by ID", False, f"Exception: {str(e)}")
+
+def test_download_document():
+    """Test downloading a document"""
+    if not created_documents:
+        log_test("Download Document", False, "No documents created to test with")
+        return
+    
+    document_id = created_documents[0]["id"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents/{document_id}/download")
+        if response.status_code == 200:
+            # Check content type and content disposition
+            content_type = response.headers.get('Content-Type')
+            content_disposition = response.headers.get('Content-Disposition')
+            
+            log_test("Download Document", True, 
+                     f"Downloaded document with Content-Type: {content_type}, Content-Disposition: {content_disposition}")
+        else:
+            log_test("Download Document", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Download Document", False, f"Exception: {str(e)}")
+
+def test_update_document():
+    """Test updating a document's metadata"""
+    if not created_documents:
+        log_test("Update Document", False, "No documents created to test with")
+        return
+    
+    document_id = created_documents[0]["id"]
+    update_data = {
+        "title": f"Updated Document Title {datetime.now().isoformat()}",
+        "description": "Updated document description for testing",
+        "discipline": "Updated Discipline",
+        "document_number": f"UPD-{uuid.uuid4().hex[:8]}",
+        "tags": ["updated", "test", "document"]
+    }
+    
+    try:
+        response = requests.put(f"{BACKEND_URL}/documents/{document_id}", json=update_data)
+        if response.status_code == 200:
+            document = response.json()
+            log_test("Update Document", True, f"Updated document title to: {document['title']}")
+            
+            # Verify fields were updated correctly
+            for key, value in update_data.items():
+                if isinstance(value, list) and key == "tags":
+                    # Compare tags as sets since order might differ
+                    if set(document[key]) != set(value):
+                        log_test(f"Update Document Field: {key}", False, f"Expected {value}, got {document[key]}")
+                    else:
+                        log_test(f"Update Document Field: {key}", True, f"Field updated correctly")
+                elif document[key] != value:
+                    log_test(f"Update Document Field: {key}", False, f"Expected {value}, got {document[key]}")
+                else:
+                    log_test(f"Update Document Field: {key}", True, f"Field updated correctly")
+        else:
+            log_test("Update Document", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Update Document", False, f"Exception: {str(e)}")
+
+def test_document_status_workflow():
+    """Test document status workflow transitions"""
+    if not created_documents or not created_users:
+        log_test("Document Status Workflow", False, "No documents or users created to test with")
+        return
+    
+    document_id = created_documents[0]["id"]
+    reviewer_id = created_users[1]["id"] if len(created_users) > 1 else created_users[0]["id"]
+    approver_id = created_users[2]["id"] if len(created_users) > 2 else created_users[0]["id"]
+    
+    # Test status transitions: draft -> under_review -> approved
+    status_updates = [
+        {"status": "under_review", "reviewed_by": reviewer_id},
+        {"status": "approved", "approved_by": approver_id}
+    ]
+    
+    for update in status_updates:
+        try:
+            response = requests.put(f"{BACKEND_URL}/documents/{document_id}/status", json=update)
+            if response.status_code == 200:
+                document = response.json()
+                log_test(f"Document Status Transition to {update['status']}", True, 
+                         f"Updated document status to: {document['status']}")
+                
+                # Verify status and reviewer/approver were updated correctly
+                if document["status"] != update["status"]:
+                    log_test(f"Document Status Verification for {update['status']}", False, 
+                             f"Expected status {update['status']}, got {document['status']}")
+                else:
+                    log_test(f"Document Status Verification for {update['status']}", True, 
+                             "Document status updated correctly")
+                
+                if "reviewed_by" in update and document["reviewed_by"] != update["reviewed_by"]:
+                    log_test("Document Reviewer Verification", False, 
+                             f"Expected reviewer {update['reviewed_by']}, got {document['reviewed_by']}")
+                elif "reviewed_by" in update:
+                    log_test("Document Reviewer Verification", True, "Document reviewer updated correctly")
+                
+                if "approved_by" in update and document["approved_by"] != update["approved_by"]:
+                    log_test("Document Approver Verification", False, 
+                             f"Expected approver {update['approved_by']}, got {document['approved_by']}")
+                elif "approved_by" in update:
+                    log_test("Document Approver Verification", True, "Document approver updated correctly")
+            else:
+                log_test(f"Document Status Transition to {update['status']}", False, 
+                         f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test(f"Document Status Transition to {update['status']}", False, f"Exception: {str(e)}")
+
+def test_document_analytics():
+    """Test document analytics summary"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/documents/analytics/summary")
+        if response.status_code == 200:
+            analytics = response.json()
+            log_test("Document Analytics", True, f"Retrieved document analytics")
+            
+            # Verify the analytics contains the expected fields
+            expected_fields = ["total_documents", "total_size_bytes", "total_size_mb", "by_category", "by_status"]
+            
+            missing_fields = [field for field in expected_fields if field not in analytics]
+            if missing_fields:
+                log_test("Document Analytics Fields", False, f"Missing fields: {missing_fields}")
+            else:
+                log_test("Document Analytics Fields", True, "All expected fields present")
+        else:
+            log_test("Document Analytics", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Document Analytics", False, f"Exception: {str(e)}")
+    
+    # Test project-specific analytics
+    if created_projects:
+        project_id = created_projects[0]["id"]
+        try:
+            response = requests.get(f"{BACKEND_URL}/documents/analytics/summary?project_id={project_id}")
+            if response.status_code == 200:
+                analytics = response.json()
+                log_test("Project Document Analytics", True, f"Retrieved document analytics for project {project_id}")
+            else:
+                log_test("Project Document Analytics", False, f"Status code: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            log_test("Project Document Analytics", False, f"Exception: {str(e)}")
+
+def test_delete_document():
+    """Test deleting a document"""
+    if not created_documents:
+        log_test("Delete Document", False, "No documents created to test with")
+        return
+    
+    # Use the last document for deletion
+    document_id = created_documents[-1]["id"]
+    try:
+        response = requests.delete(f"{BACKEND_URL}/documents/{document_id}")
+        if response.status_code == 200:
+            log_test("Delete Document", True, f"Successfully deleted document {document_id}")
+            
+            # Verify the document was deleted
+            response = requests.get(f"{BACKEND_URL}/documents/{document_id}")
+            if response.status_code == 404:
+                log_test("Document Deletion Verification", True, "Document was correctly deleted")
+            else:
+                log_test("Document Deletion Verification", False, f"Document still exists with status code: {response.status_code}")
+        else:
+            log_test("Delete Document", False, f"Status code: {response.status_code}, Response: {response.text}")
+    except Exception as e:
+        log_test("Delete Document", False, f"Exception: {str(e)}")
+
+def test_document_management_system():
+    """Run all document management system tests"""
+    print("\n=== Testing Document Management System ===\n")
+    
+    # Create test users and projects if needed
+    if not created_users:
+        test_create_users()
+    if not created_projects:
+        test_create_projects()
+    
+    # Run document tests
+    test_document_upload()
+    test_get_documents()
+    test_get_document_by_id()
+    test_download_document()
+    test_update_document()
+    test_document_status_workflow()
+    test_document_analytics()
+    test_delete_document()
     project_data = {
         "name": "Agile Workflow Test Project",
         "description": "Project for testing the complete agile workflow",
