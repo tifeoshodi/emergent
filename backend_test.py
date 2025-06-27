@@ -13,7 +13,7 @@ def get_backend_url():
         with open('/app/frontend/.env', 'r') as f:
             for line in f:
                 if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.strip().split('=')[1].strip('"\'') + '/api'
+                    return line.strip().split('=')[1].strip("\"'") + '/api'
     except Exception as e:
         print(f"Error reading .env file: {e}")
         # Fallback to the existing URL if we can't read the .env file
@@ -143,7 +143,17 @@ def test_get_user_by_id():
         response = requests.get(f"{BACKEND_URL}/users/{user_id}")
         if response.status_code == 200:
             user = response.json()
-            log_test("Get User by ID", True, f"Retrieved user: {user['name']}")
+            try:
+                assert user["id"] == created_users[0]["id"]
+                assert user["name"] == created_users[0]["name"]
+                assert user["email"] == created_users[0]["email"]
+                log_test("Get User by ID", True, f"Retrieved user: {user['name']}")
+            except AssertionError:
+                log_test(
+                    "Get User by ID",
+                    False,
+                    "Returned user data does not match created user",
+                )
         else:
             log_test("Get User by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
@@ -667,18 +677,18 @@ def test_user_data_in_resource_management():
             resources = response.json()
             log_test("Project Resources", True, f"Retrieved resources for project {project_id}")
             
-            # Check if team members are included
-            if "team_members" not in resources:
-                log_test("Team Members in Resources", False, "Team members not included in resources")
+            # Check if resources are included in the response
+            if "resources" not in resources:
+                log_test("Resources in Response", False, "Resources not included in response")
                 return
-            
-            # Check if user disciplines are included
-            for member in resources["team_members"]:
+
+            # Check if resource disciplines are included
+            for member in resources["resources"]:
                 if "discipline" not in member:
-                    log_test("User Disciplines in Resources", False, f"Discipline missing for user {member.get('id', 'unknown')}")
+                    log_test("Resource Disciplines", False, f"Discipline missing for resource {member.get('id', 'unknown')}")
                     return
-            
-            log_test("User Disciplines in Resources", True, "User disciplines correctly included in resources")
+
+            log_test("Resource Disciplines", True, "Resource disciplines correctly included")
         else:
             log_test("User Data in Resource Management", False, f"Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:

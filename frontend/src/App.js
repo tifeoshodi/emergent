@@ -226,9 +226,13 @@ const Dashboard = () => {
   const [recentTasks, setRecentTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [disciplines, setDisciplines] = useState([]);
+  const [selectedDiscipline, setSelectedDiscipline] = useState('');
+  const [disciplineData, setDisciplineData] = useState(null);
 
   useEffect(() => {
     fetchProjects();
+    fetchDisciplines();
   }, []);
 
   useEffect(() => {
@@ -236,6 +240,12 @@ const Dashboard = () => {
       fetchDashboardData(selectedProject.id);
     }
   }, [selectedProject]);
+
+  useEffect(() => {
+    if (selectedDiscipline) {
+      fetchDisciplineData(selectedDiscipline);
+    }
+  }, [selectedDiscipline]);
 
   const fetchProjects = async () => {
     try {
@@ -255,11 +265,33 @@ const Dashboard = () => {
         axios.get(`${API}/projects/${projectId}/dashboard`),
         axios.get(`${API}/tasks?project_id=${projectId}`)
       ]);
-      
+
       setStats(statsRes.data);
       setRecentTasks(tasksRes.data.slice(0, 5)); // Show 5 recent tasks
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  const fetchDisciplines = async () => {
+    try {
+      const res = await axios.get(`${API}/users`);
+      const unique = [...new Set(res.data.map(u => u.discipline).filter(Boolean))];
+      setDisciplines(unique);
+      if (unique.length > 0 && !selectedDiscipline) {
+        setSelectedDiscipline(unique[0]);
+      }
+    } catch (e) {
+      console.error('Error fetching disciplines:', e);
+    }
+  };
+
+  const fetchDisciplineData = async (discipline) => {
+    try {
+      const res = await axios.get(`${API}/dashboard/discipline`, { params: { discipline } });
+      setDisciplineData(res.data);
+    } catch (e) {
+      console.error('Error fetching discipline data:', e);
     }
   };
 
@@ -462,6 +494,47 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Discipline Metrics */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-8">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-lg font-semibold text-gray-900">Discipline Overview</h3>
+          <select
+            value={selectedDiscipline}
+            onChange={(e) => setSelectedDiscipline(e.target.value)}
+            className="border-gray-300 rounded-md text-sm"
+          >
+            {disciplines.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+        {disciplineData && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              {Object.entries(disciplineData.tasks_by_status).map(([status, count]) => (
+                <div key={status} className="p-4 bg-gray-50 rounded">
+                  <p className="text-sm text-gray-600 capitalize">{status.replace('_',' ')}</p>
+                  <p className="text-xl font-bold text-gray-900">{count}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-gray-700 mb-2">Milestone Completion: {disciplineData.milestone_completion_percent.toFixed(1)}%</p>
+            <p className="text-sm text-gray-700 mb-4">Resource Utilization: {disciplineData.resource_utilization_percent.toFixed(1)}%</p>
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Active Projects</h4>
+              <ul className="divide-y divide-gray-200">
+                {disciplineData.projects.map(p => (
+                  <li key={p.project_id} className="py-1 flex justify-between text-sm">
+                    <span>{p.project_name}</span>
+                    <span>{Math.round(p.progress_percent)}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -904,7 +977,8 @@ const TaskManagement = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await axios.get(`${API}/tasks?project_id=independent`);
+      // Fetch tasks that are not associated with any project
+      const response = await axios.get(`${API}/tasks?independent=true`);
       setTasks(response.data);
     } catch (error) {
       console.error('Error fetching tasks:', error);

@@ -6,13 +6,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
+from document_parser import parse_document as ocr_parse_document
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
 import shutil
-import aiofiles
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -97,10 +97,12 @@ class DocumentStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+
 class DocumentReviewStep(str, Enum):
     DIC = "dic"  # Discipline Internal Check
     IDC = "idc"  # Inter Discipline Check
     DCC = "dcc"  # Document Control Centre / Client Feedback & Approval
+
 
 
 class DocumentCategory(str, Enum):
@@ -245,6 +247,10 @@ class Document(BaseModel):
     revision: Optional[str] = None
     discipline: Optional[str] = None  # Engineering discipline
     document_number: Optional[str] = None  # Unique document identifier
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     created_by: str
     review_step: DocumentReviewStep = DocumentReviewStep.DIC
     dic_completed_at: Optional[datetime] = None
@@ -273,6 +279,10 @@ class DocumentCreate(BaseModel):
     revision: Optional[str] = None
     discipline: Optional[str] = None
     document_number: Optional[str] = None
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     tags: List[str] = []
     review_step: DocumentReviewStep = DocumentReviewStep.DIC
     dic_completed_at: Optional[datetime] = None
@@ -297,6 +307,10 @@ class DocumentUpdate(BaseModel):
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
     document_number: Optional[str] = None
+    review_step: Optional[DocumentReviewStep] = None
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -391,6 +405,22 @@ class DashboardStats(BaseModel):
     my_tasks: int
 
 
+# Metrics for dashboard views filtered by discipline
+class ProjectProgress(BaseModel):
+    project_id: str
+    project_name: str
+    progress_percent: float
+    milestone_completion_percent: float
+
+
+class DisciplineDashboard(BaseModel):
+    discipline: str
+    tasks_by_status: dict
+    milestone_completion_percent: float
+    resource_utilization_percent: float
+    projects: List[ProjectProgress]
+
+
 # Gantt Chart models
 class GanttTask(BaseModel):
     id: str
@@ -411,6 +441,19 @@ class GanttData(BaseModel):
     project_start: datetime
     project_end: datetime
     critical_path: List[str] = []  # Task IDs on critical path
+
+
+# WBS models
+class WBSNode(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    project_id: str
+    task_id: str
+    title: str
+    duration_days: float
+    predecessors: List[str] = []
+    early_start: float
+    early_finish: float
+    is_critical: bool = False
 
 
 # Resource allocation models
@@ -570,7 +613,16 @@ async def get_tasks(
     independent: Optional[bool] = False,
     current_user: User = Depends(get_current_user),
 ):
+
     query = {"discipline": current_user.discipline}
+
+    """Retrieve tasks with optional filters.
+
+    If ``independent`` is ``True``, only tasks not tied to any project are
+    returned and any provided ``project_id`` is ignored.
+    """
+    query = {}
+
 
     if independent:
         query["project_id"] = None
@@ -696,6 +748,71 @@ async def get_dashboard_stats():
         in_progress_tasks=in_progress_tasks,
         overdue_tasks=overdue_tasks,
         my_tasks=my_tasks,
+    )
+
+
+# Discipline dashboard metrics
+@api_router.get("/dashboard/discipline", response_model=DisciplineDashboard)
+async def get_discipline_dashboard(discipline: str):
+    # Find all users within the discipline
+    users = await db.users.find({"discipline": discipline}).to_list(1000)
+    user_ids = [u["id"] for u in users]
+
+    # Fetch tasks assigned to those users
+    tasks = await db.tasks.find({"assigned_to": {"$in": user_ids}}).to_list(1000)
+
+    # Count tasks by status
+    status_counts = {s.value: 0 for s in TaskStatus}
+    for task in tasks:
+        status = task.get("status", TaskStatus.TODO.value)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    # Milestone completion
+    milestone_tasks = [t for t in tasks if t.get("is_milestone")]
+    completed_milestones = [t for t in milestone_tasks if t.get("status") == TaskStatus.DONE]
+    milestone_percent = (len(completed_milestones) / len(milestone_tasks) * 100) if milestone_tasks else 0
+
+    # Resource utilization
+    available_hours = sum((u.get("availability", 1.0) * 40) for u in users)
+    allocated_hours = sum((t.get("estimated_hours", 8) for t in tasks))
+    utilization = (allocated_hours / available_hours * 100) if available_hours > 0 else 0
+
+    # Active projects and progress
+    project_map = {}
+    for task in tasks:
+        pid = task.get("project_id")
+        if not pid:
+            continue
+        if pid not in project_map:
+            project_map[pid] = {"total": 0, "completed": 0, "milestones": 0, "milestones_done": 0}
+        project_map[pid]["total"] += 1
+        if task.get("status") == TaskStatus.DONE:
+            project_map[pid]["completed"] += 1
+        if task.get("is_milestone"):
+            project_map[pid]["milestones"] += 1
+            if task.get("status") == TaskStatus.DONE:
+                project_map[pid]["milestones_done"] += 1
+
+    projects = []
+    for pid, counts in project_map.items():
+        proj = await db.projects.find_one({"id": pid})
+        if not proj:
+            continue
+        progress = counts["completed"] / counts["total"] * 100 if counts["total"] > 0 else 0
+        mile_percent = counts["milestones_done"] / counts["milestones"] * 100 if counts["milestones"] > 0 else 0
+        projects.append(ProjectProgress(
+            project_id=pid,
+            project_name=proj.get("name"),
+            progress_percent=progress,
+            milestone_completion_percent=mile_percent
+        ))
+
+    return DisciplineDashboard(
+        discipline=discipline,
+        tasks_by_status=status_counts,
+        milestone_completion_percent=milestone_percent,
+        resource_utilization_percent=utilization,
+        projects=projects
     )
 
 
@@ -920,6 +1037,121 @@ async def get_resources_overview():
         )
 
     return {"resources": resource_summary}
+
+
+# ------------------- WBS Endpoints -------------------
+
+def _calculate_cpm(tasks: List[Task]):
+    """Compute critical path metrics for tasks."""
+    durations = {}
+    preds = {}
+    for t in tasks:
+        dur = t.duration_days
+        if not dur:
+            if t.start_date and t.end_date:
+                dur = max((t.end_date - t.start_date).days, 1)
+            else:
+                dur = 1
+        durations[t.id] = dur
+        preds[t.id] = t.predecessor_tasks or []
+
+    early_start: Dict[str, float] = {}
+    early_finish: Dict[str, float] = {}
+
+    def ef(tid: str) -> float:
+        if tid in early_finish:
+            return early_finish[tid]
+        if not preds[tid]:
+            es = 0.0
+        else:
+            es = max(ef(p) for p in preds[tid])
+        early_start[tid] = es
+        early_finish[tid] = es + durations[tid]
+        return early_finish[tid]
+
+    for tid in durations:
+        ef(tid)
+
+    longest: Dict[str, float] = {}
+
+    def longest_path(tid: str) -> float:
+        if tid in longest:
+            return longest[tid]
+        if not preds[tid]:
+            longest[tid] = durations[tid]
+        else:
+            longest[tid] = durations[tid] + max(longest_path(p) for p in preds[tid])
+        return longest[tid]
+
+    for tid in durations:
+        longest_path(tid)
+
+    end_task = max(durations.keys(), key=lambda x: longest[x])
+    critical_path = []
+
+    def build(tid: str):
+        critical_path.append(tid)
+        if preds[tid]:
+            nxt = max(preds[tid], key=lambda p: longest[p])
+            build(nxt)
+
+    build(end_task)
+    critical_path.reverse()
+
+    results = {}
+    for tid in durations:
+        results[tid] = {
+            "early_start": early_start[tid],
+            "early_finish": early_finish[tid],
+            "duration": durations[tid],
+            "is_critical": tid in critical_path,
+        }
+    return critical_path, results
+
+
+@api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
+async def generate_project_wbs(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    tasks_data = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks = [Task(**t) for t in tasks_data]
+    if not tasks:
+        raise HTTPException(status_code=404, detail="No tasks found for project")
+
+    critical_path, metrics = _calculate_cpm(tasks)
+
+    await db.wbs.delete_many({"project_id": project_id})
+
+    nodes = []
+    for t in tasks:
+        m = metrics[t.id]
+        node_data = {
+            "project_id": project_id,
+            "task_id": t.id,
+            "title": t.title,
+            "duration_days": m["duration"],
+            "predecessors": t.predecessor_tasks,
+            "early_start": m["early_start"],
+            "early_finish": m["early_finish"],
+            "is_critical": m["is_critical"],
+        }
+        node = WBSNode(**node_data)
+        await db.wbs.insert_one(node.dict())
+        nodes.append(node)
+
+    return nodes
+
+
+@api_router.get("/projects/{project_id}/wbs", response_model=List[WBSNode])
+async def get_project_wbs(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    return [WBSNode(**n) for n in nodes]
 
 
 # Epic endpoints
@@ -1199,6 +1431,9 @@ async def upload_document(
             "created_by": current_user.id,
             "tags": tag_list,
             "is_confidential": is_confidential,
+
+            "review_step": DocumentReviewStep.DIC
+
         }
 
         document_obj = Document(**document_data)
@@ -1211,6 +1446,28 @@ async def upload_document(
         if "file_path" in locals() and file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
+
+
+
+@api_router.post("/documents/parse")
+async def parse_document_endpoint(file: UploadFile = File(...)):
+    """Upload a CTR/MDR file, apply OCR and return structured data."""
+    try:
+        documents_dir = ROOT_DIR / "documents"
+        documents_dir.mkdir(exist_ok=True)
+        extension = file.filename.split(".")[-1] if "." in file.filename else ""
+        temp_path = documents_dir / f"{uuid.uuid4()}.{extension}"
+
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        data = ocr_parse_document(temp_path)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
+    finally:
+        if 'temp_path' in locals() and temp_path.exists():
+            temp_path.unlink()
 
 
 @api_router.get("/documents", response_model=List[Document])
@@ -1279,6 +1536,48 @@ async def update_document(
 
     updated_document = await db.documents.find_one({"id": document_id})
     return Document(**updated_document)
+
+
+@api_router.post("/documents/{document_id}/advance_review")
+async def advance_document_review(document_id: str, revision: bool = False):
+    """Move a document through the DIC -> IDC -> DCC workflow."""
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc = Document(**document)
+    update_data = {"updated_at": datetime.utcnow()}
+    notification = None
+
+    if revision:
+        update_data["review_step"] = DocumentReviewStep.DIC
+        update_data["status"] = DocumentStatus.DRAFT
+        notification = f"Document '{doc.title}' requires revisions and was returned to DIC"
+        if doc.task_id:
+            await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.IN_PROGRESS}})
+    else:
+        if doc.review_step == DocumentReviewStep.DIC:
+            update_data["review_step"] = DocumentReviewStep.IDC
+            update_data["dic_completed_at"] = datetime.utcnow()
+            update_data["status"] = DocumentStatus.UNDER_REVIEW
+            notification = f"Document '{doc.title}' sent for client approval"
+            if doc.task_id:
+                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.REVIEW}})
+        elif doc.review_step == DocumentReviewStep.IDC:
+            update_data["review_step"] = DocumentReviewStep.DCC
+            update_data["idc_completed_at"] = datetime.utcnow()
+            update_data["status"] = DocumentStatus.APPROVED
+            notification = f"Document '{doc.title}' approved and sent to document control"
+            if doc.task_id:
+                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.DONE}})
+        else:
+            return {"message": "Document already in final stage"}
+
+    await db.documents.update_one({"id": document_id}, {"$set": update_data})
+
+    updated_document = await db.documents.find_one({"id": document_id})
+    logger.info(notification)
+    return {"document": Document(**updated_document), "notification": notification}
 
 
 @api_router.put("/documents/{document_id}/status")
