@@ -996,32 +996,44 @@ async def get_project_resources(project_id: str):
 
 @api_router.get("/resources/overview")
 async def get_resources_overview():
-    users = await db.users.find().to_list(1000)
-    tasks = await db.tasks.find({"assigned_to": {"$ne": None}}).to_list(1000)
+    """Return high level utilization metrics for all resources."""
+    try:
+        users = await db.users.find().to_list(1000)
+        tasks = await db.tasks.find({"assigned_to": {"$ne": None}}).to_list(1000)
+    except Exception as exc:  # pragma: no cover - safety net
+        logger.exception("Failed fetching resources")
+        raise HTTPException(status_code=500, detail="Error fetching resources") from exc
 
     resource_summary = []
 
     for user in users:
-        user_tasks = [t for t in tasks if t.get("assigned_to") == user["id"]]
-        total_hours = sum(t.get("estimated_hours", 8) for t in user_tasks)
+        try:
+            uid = user.get("id")
+            if not uid:
+                continue
+            user_tasks = [t for t in tasks if t.get("assigned_to") == uid]
+            total_hours = sum(t.get("estimated_hours", 8) for t in user_tasks)
 
-        # Use user's availability or default to 40 hours
-        user_availability = user.get("availability", 1.0)
-        available_hours = 40 * user_availability  # 40 hours * availability percentage
+            user_availability = float(user.get("availability", 1.0) or 0)
+            available_hours = 40 * user_availability
+            utilization = (total_hours / available_hours) * 100 if available_hours > 0 else 0
 
-        resource_summary.append(
-            {
-                "user_id": user["id"],
-                "name": user["name"],
-                "role": user["role"],
-                "discipline": user.get("discipline", "General"),
-                "hourly_rate": user.get("hourly_rate"),
-                "allocated_hours": total_hours,
-                "available_hours": available_hours,
-                "utilization_percent": min((total_hours / available_hours) * 100, 100) if available_hours > 0 else 0,
-                "active_tasks": len([t for t in user_tasks if t.get("status") != "done"]),
-            }
-        )
+            resource_summary.append(
+                {
+                    "user_id": uid,
+                    "name": user.get("name"),
+                    "role": user.get("role"),
+                    "discipline": user.get("discipline", "General"),
+                    "hourly_rate": user.get("hourly_rate"),
+                    "allocated_hours": total_hours,
+                    "available_hours": available_hours,
+                    "utilization_percent": min(utilization, 100),
+                    "active_tasks": len([t for t in user_tasks if t.get("status") != "done"]),
+                }
+            )
+        except Exception:
+            logger.exception("Error processing resource metrics for user %s", user.get("id"))
+            continue
 
     return {"resources": resource_summary}
 
@@ -1287,6 +1299,7 @@ async def get_sprint_board(sprint_id: str):
 # Sprint analytics
 @api_router.get("/sprints/{sprint_id}/analytics")
 async def get_sprint_analytics(sprint_id: str):
+    """Provide analytics and burndown information for a sprint."""
     sprint = await db.sprints.find_one({"id": sprint_id})
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
@@ -1302,8 +1315,12 @@ async def get_sprint_analytics(sprint_id: str):
     completed_tasks = len([task for task in tasks if task.get("status") == "done"])
 
     # Calculate days elapsed and remaining
-    start_date = datetime.fromisoformat(sprint["start_date"])
-    end_date = datetime.fromisoformat(sprint["end_date"])
+    start_date_raw = sprint.get("start_date")
+    end_date_raw = sprint.get("end_date")
+
+    start_date = start_date_raw if isinstance(start_date_raw, datetime) else datetime.fromisoformat(str(start_date_raw))
+    end_date = end_date_raw if isinstance(end_date_raw, datetime) else datetime.fromisoformat(str(end_date_raw))
+
     current_date = datetime.utcnow()
 
     total_days = (end_date - start_date).days
