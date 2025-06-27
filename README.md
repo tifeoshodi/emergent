@@ -1,1 +1,15 @@
-# Here are your Instructions
+# emergent
+
+This repository contains a full stack application with a FastAPI backend and a React frontend.
+
+## Setup
+
+Use the provided setup script to install the project dependencies.
+
+```bash
+bash scripts/setup_env.sh
+```
+
+The script installs Python packages listed in both `requirements.txt` files and installs frontend dependencies via `yarn` if available.
+
+Running this script requires network access to fetch packages from external repositories.
