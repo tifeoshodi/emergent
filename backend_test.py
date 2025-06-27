@@ -143,7 +143,17 @@ def test_get_user_by_id():
         response = requests.get(f"{BACKEND_URL}/users/{user_id}")
         if response.status_code == 200:
             user = response.json()
-            log_test("Get User by ID", True, f"Retrieved user: {user['name']}")
+            try:
+                assert user["id"] == created_users[0]["id"]
+                assert user["name"] == created_users[0]["name"]
+                assert user["email"] == created_users[0]["email"]
+                log_test("Get User by ID", True, f"Retrieved user: {user['name']}")
+            except AssertionError:
+                log_test(
+                    "Get User by ID",
+                    False,
+                    "Returned user data does not match created user",
+                )
         else:
             log_test("Get User by ID", False, f"Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
