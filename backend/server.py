@@ -35,7 +35,7 @@ async def api_health():
     return {"status": "ok", "message": "EPC Project Management API is running"}
 
 
-async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> User:
+async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> "User":
     user = await db.users.find_one({"id": x_user_id})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid user")
@@ -95,6 +95,12 @@ class DocumentStatus(str, Enum):
     APPROVED = "approved"
     SUPERSEDED = "superseded"
     ARCHIVED = "archived"
+
+
+class DocumentReviewStep(str, Enum):
+    DIC = "dic"  # Discipline Internal Check
+    IDC = "idc"  # Inter Discipline Check
+    DCC = "dcc"  # Document Control Centre / Client Feedback & Approval
 
 
 class DocumentCategory(str, Enum):
@@ -240,6 +246,10 @@ class Document(BaseModel):
     discipline: Optional[str] = None  # Engineering discipline
     document_number: Optional[str] = None  # Unique document identifier
     created_by: str
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
     tags: List[str] = []
@@ -264,6 +274,10 @@ class DocumentCreate(BaseModel):
     discipline: Optional[str] = None
     document_number: Optional[str] = None
     tags: List[str] = []
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     is_confidential: bool = False
     expiry_date: Optional[datetime] = None
 
@@ -278,6 +292,10 @@ class DocumentUpdate(BaseModel):
     version: Optional[str] = None
     revision: Optional[str] = None
     discipline: Optional[str] = None
+    review_step: Optional[DocumentReviewStep] = None
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     document_number: Optional[str] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
@@ -1177,6 +1195,7 @@ async def upload_document(
             "file_path": str(file_path),
             "discipline": discipline,
             "document_number": document_number,
+            "review_step": DocumentReviewStep.DIC,
             "created_by": current_user.id,
             "tags": tag_list,
             "is_confidential": is_confidential,
@@ -1271,6 +1290,7 @@ async def update_document_status(document_id: str, status_update: dict, current_
     new_status = status_update.get("status")
     reviewed_by = status_update.get("reviewed_by")
     approved_by = status_update.get("approved_by")
+    review_step = status_update.get("review_step")
 
     update_data = {"updated_at": datetime.utcnow()}
 
@@ -1280,6 +1300,8 @@ async def update_document_status(document_id: str, status_update: dict, current_
         update_data["reviewed_by"] = reviewed_by
     if approved_by:
         update_data["approved_by"] = approved_by
+    if review_step:
+        update_data["review_step"] = review_step
 
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
 
