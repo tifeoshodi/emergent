@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
+from document_parser import parse_document as ocr_parse_document
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
@@ -1064,14 +1065,35 @@ async def upload_document(
         
         document_obj = Document(**document_data)
         await db.documents.insert_one(document_obj.dict())
-        
+
         return document_obj
-        
+
     except Exception as e:
         # Clean up file if document creation failed
         if 'file_path' in locals() and file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
+
+
+@api_router.post("/documents/parse")
+async def parse_document_endpoint(file: UploadFile = File(...)):
+    """Upload a CTR/MDR file, apply OCR and return structured data."""
+    try:
+        documents_dir = ROOT_DIR / "documents"
+        documents_dir.mkdir(exist_ok=True)
+        extension = file.filename.split(".")[-1] if "." in file.filename else ""
+        temp_path = documents_dir / f"{uuid.uuid4()}.{extension}"
+
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        data = ocr_parse_document(temp_path)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
+    finally:
+        if 'temp_path' in locals() and temp_path.exists():
+            temp_path.unlink()
 
 @api_router.get("/documents", response_model=List[Document])
 async def get_documents(
