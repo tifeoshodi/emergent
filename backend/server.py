@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
@@ -347,6 +347,18 @@ class GanttData(BaseModel):
     project_start: datetime
     project_end: datetime
     critical_path: List[str] = []  # Task IDs on critical path
+
+# WBS models
+class WBSNode(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    project_id: str
+    task_id: str
+    title: str
+    duration_days: float
+    predecessors: List[str] = []
+    early_start: float
+    early_finish: float
+    is_critical: bool = False
 
 # Resource allocation models
 class ResourceAllocation(BaseModel):
@@ -807,6 +819,120 @@ async def get_resources_overview():
         })
     
     return {"resources": resource_summary}
+
+# ------------------- WBS Endpoints -------------------
+
+def _calculate_cpm(tasks: List[Task]):
+    """Compute critical path metrics for tasks."""
+    durations = {}
+    preds = {}
+    for t in tasks:
+        dur = t.duration_days
+        if not dur:
+            if t.start_date and t.end_date:
+                dur = max((t.end_date - t.start_date).days, 1)
+            else:
+                dur = 1
+        durations[t.id] = dur
+        preds[t.id] = t.predecessor_tasks or []
+
+    early_start: Dict[str, float] = {}
+    early_finish: Dict[str, float] = {}
+
+    def ef(tid: str) -> float:
+        if tid in early_finish:
+            return early_finish[tid]
+        if not preds[tid]:
+            es = 0.0
+        else:
+            es = max(ef(p) for p in preds[tid])
+        early_start[tid] = es
+        early_finish[tid] = es + durations[tid]
+        return early_finish[tid]
+
+    for tid in durations:
+        ef(tid)
+
+    longest: Dict[str, float] = {}
+
+    def longest_path(tid: str) -> float:
+        if tid in longest:
+            return longest[tid]
+        if not preds[tid]:
+            longest[tid] = durations[tid]
+        else:
+            longest[tid] = durations[tid] + max(longest_path(p) for p in preds[tid])
+        return longest[tid]
+
+    for tid in durations:
+        longest_path(tid)
+
+    end_task = max(durations.keys(), key=lambda x: longest[x])
+    critical_path = []
+
+    def build(tid: str):
+        critical_path.append(tid)
+        if preds[tid]:
+            nxt = max(preds[tid], key=lambda p: longest[p])
+            build(nxt)
+
+    build(end_task)
+    critical_path.reverse()
+
+    results = {}
+    for tid in durations:
+        results[tid] = {
+            "early_start": early_start[tid],
+            "early_finish": early_finish[tid],
+            "duration": durations[tid],
+            "is_critical": tid in critical_path,
+        }
+    return critical_path, results
+
+
+@api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
+async def generate_project_wbs(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    tasks_data = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks = [Task(**t) for t in tasks_data]
+    if not tasks:
+        raise HTTPException(status_code=404, detail="No tasks found for project")
+
+    critical_path, metrics = _calculate_cpm(tasks)
+
+    await db.wbs.delete_many({"project_id": project_id})
+
+    nodes = []
+    for t in tasks:
+        m = metrics[t.id]
+        node_data = {
+            "project_id": project_id,
+            "task_id": t.id,
+            "title": t.title,
+            "duration_days": m["duration"],
+            "predecessors": t.predecessor_tasks,
+            "early_start": m["early_start"],
+            "early_finish": m["early_finish"],
+            "is_critical": m["is_critical"],
+        }
+        node = WBSNode(**node_data)
+        await db.wbs.insert_one(node.dict())
+        nodes.append(node)
+
+    return nodes
+
+
+@api_router.get("/projects/{project_id}/wbs", response_model=List[WBSNode])
+async def get_project_wbs(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    return [WBSNode(**n) for n in nodes]
 
 # Epic endpoints
 @api_router.post("/epics", response_model=Epic)
