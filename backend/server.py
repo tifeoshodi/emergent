@@ -346,6 +346,21 @@ class DashboardStats(BaseModel):
     overdue_tasks: int
     my_tasks: int
 
+# Metrics for dashboard views filtered by discipline
+class ProjectProgress(BaseModel):
+    project_id: str
+    project_name: str
+    progress_percent: float
+    milestone_completion_percent: float
+
+
+class DisciplineDashboard(BaseModel):
+    discipline: str
+    tasks_by_status: dict
+    milestone_completion_percent: float
+    resource_utilization_percent: float
+    projects: List[ProjectProgress]
+
 # Gantt Chart models
 class GanttTask(BaseModel):
     id: str
@@ -608,6 +623,70 @@ async def get_dashboard_stats():
         in_progress_tasks=in_progress_tasks,
         overdue_tasks=overdue_tasks,
         my_tasks=my_tasks
+    )
+
+# Discipline dashboard metrics
+@api_router.get("/dashboard/discipline", response_model=DisciplineDashboard)
+async def get_discipline_dashboard(discipline: str):
+    # Find all users within the discipline
+    users = await db.users.find({"discipline": discipline}).to_list(1000)
+    user_ids = [u["id"] for u in users]
+
+    # Fetch tasks assigned to those users
+    tasks = await db.tasks.find({"assigned_to": {"$in": user_ids}}).to_list(1000)
+
+    # Count tasks by status
+    status_counts = {s.value: 0 for s in TaskStatus}
+    for task in tasks:
+        status = task.get("status", TaskStatus.TODO.value)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    # Milestone completion
+    milestone_tasks = [t for t in tasks if t.get("is_milestone")]
+    completed_milestones = [t for t in milestone_tasks if t.get("status") == TaskStatus.DONE]
+    milestone_percent = (len(completed_milestones) / len(milestone_tasks) * 100) if milestone_tasks else 0
+
+    # Resource utilization
+    available_hours = sum((u.get("availability", 1.0) * 40) for u in users)
+    allocated_hours = sum((t.get("estimated_hours", 8) for t in tasks))
+    utilization = (allocated_hours / available_hours * 100) if available_hours > 0 else 0
+
+    # Active projects and progress
+    project_map = {}
+    for task in tasks:
+        pid = task.get("project_id")
+        if not pid:
+            continue
+        if pid not in project_map:
+            project_map[pid] = {"total": 0, "completed": 0, "milestones": 0, "milestones_done": 0}
+        project_map[pid]["total"] += 1
+        if task.get("status") == TaskStatus.DONE:
+            project_map[pid]["completed"] += 1
+        if task.get("is_milestone"):
+            project_map[pid]["milestones"] += 1
+            if task.get("status") == TaskStatus.DONE:
+                project_map[pid]["milestones_done"] += 1
+
+    projects = []
+    for pid, counts in project_map.items():
+        proj = await db.projects.find_one({"id": pid})
+        if not proj:
+            continue
+        progress = counts["completed"] / counts["total"] * 100 if counts["total"] > 0 else 0
+        mile_percent = counts["milestones_done"] / counts["milestones"] * 100 if counts["milestones"] > 0 else 0
+        projects.append(ProjectProgress(
+            project_id=pid,
+            project_name=proj.get("name"),
+            progress_percent=progress,
+            milestone_completion_percent=mile_percent
+        ))
+
+    return DisciplineDashboard(
+        discipline=discipline,
+        tasks_by_status=status_counts,
+        milestone_completion_percent=milestone_percent,
+        resource_utilization_percent=utilization,
+        projects=projects
     )
 
 # Project-specific dashboard endpoint
