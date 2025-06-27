@@ -461,16 +461,21 @@ async def create_task(task: TaskCreate):
     return task_obj
 
 @api_router.get("/tasks", response_model=List[Task])
-async def get_tasks(project_id: Optional[str] = None, assigned_to: Optional[str] = None):
+async def get_tasks(
+    project_id: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    independent: Optional[bool] = False,
+):
     query = {}
-    if project_id is not None:
-        if project_id == "independent":
-            query["project_id"] = None
-        else:
-            query["project_id"] = project_id
+
+    if independent:
+        query["project_id"] = None
+    elif project_id is not None:
+        query["project_id"] = project_id
+
     if assigned_to:
         query["assigned_to"] = assigned_to
-    
+
     tasks = await db.tasks.find(query).to_list(1000)
     return [Task(**task) for task in tasks]
 
@@ -520,27 +525,23 @@ async def delete_user(user_id: str):
     return {"message": "User deleted successfully"}
 
 @api_router.delete("/projects/{project_id}")
-async def delete_project(project_id: str):
-    # Check if project has tasks
-    project_tasks = await db.tasks.count_documents({"project_id": project_id})
-    if project_tasks > 0:
-        raise HTTPException(status_code=400, detail=f"Cannot delete project. Project has {project_tasks} task(s). Please delete all tasks first or use force delete.")
-    
+async def delete_project(project_id: str, force: bool = False):
+    if force:
+        await db.tasks.delete_many({"project_id": project_id})
+    else:
+        project_tasks = await db.tasks.count_documents({"project_id": project_id})
+        if project_tasks > 0:
+            raise HTTPException(status_code=400, detail=f"Cannot delete project. Project has {project_tasks} task(s). Please delete all tasks first or use force delete.")
+
     result = await db.projects.delete_one({"id": project_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"message": "Project deleted successfully"}
+    message = "Project and all associated tasks deleted successfully" if force else "Project deleted successfully"
+    return {"message": message}
 
 @api_router.delete("/projects/{project_id}/force")
 async def force_delete_project(project_id: str):
-    # Delete all tasks in the project first
-    await db.tasks.delete_many({"project_id": project_id})
-    
-    # Delete the project
-    result = await db.projects.delete_one({"id": project_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"message": "Project and all associated tasks deleted successfully"}
+    return await delete_project(project_id, force=True)
 
 # Dashboard endpoint
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
@@ -610,20 +611,27 @@ async def get_project_dashboard_stats(project_id: str):
 # Kanban board data for projects
 @api_router.get("/projects/{project_id}/kanban")
 async def get_project_kanban(project_id: str):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
     tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
-    
-    kanban_data = {
+
+    kanban_board = {
         "todo": [],
         "in_progress": [],
         "review": [],
         "done": []
     }
-    
+
     for task in tasks:
         task_obj = Task(**task)
-        kanban_data[task_obj.status.value].append(task_obj.dict())
-    
-    return kanban_data
+        kanban_board[task_obj.status.value].append(task_obj.dict())
+
+    return {
+        "project": Project(**project).dict(),
+        "board": kanban_board,
+    }
 
 # Gantt Chart endpoints
 @api_router.get("/projects/{project_id}/gantt", response_model=GanttData)
