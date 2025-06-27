@@ -466,6 +466,11 @@ async def get_tasks(
     assigned_to: Optional[str] = None,
     independent: Optional[bool] = False,
 ):
+    """Retrieve tasks with optional filters.
+
+    If ``independent`` is ``True``, only tasks not tied to any project are
+    returned and any provided ``project_id`` is ignored.
+    """
     query = {}
 
     if independent:

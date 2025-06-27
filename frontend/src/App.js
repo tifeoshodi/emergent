@@ -904,7 +904,8 @@ const TaskManagement = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await axios.get(`${API}/tasks?project_id=independent`);
+      // Fetch tasks that are not associated with any project
+      const response = await axios.get(`${API}/tasks?independent=true`);
       setTasks(response.data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
