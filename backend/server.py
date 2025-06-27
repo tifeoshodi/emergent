@@ -252,10 +252,6 @@ class Document(BaseModel):
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
     created_by: str
-    review_step: DocumentReviewStep = DocumentReviewStep.DIC
-    dic_completed_at: Optional[datetime] = None
-    idc_completed_at: Optional[datetime] = None
-    dcc_completed_at: Optional[datetime] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
     tags: List[str] = []
@@ -284,10 +280,6 @@ class DocumentCreate(BaseModel):
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
     tags: List[str] = []
-    review_step: DocumentReviewStep = DocumentReviewStep.DIC
-    dic_completed_at: Optional[datetime] = None
-    idc_completed_at: Optional[datetime] = None
-    dcc_completed_at: Optional[datetime] = None
     is_confidential: bool = False
     expiry_date: Optional[datetime] = None
 
@@ -307,10 +299,6 @@ class DocumentUpdate(BaseModel):
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
     document_number: Optional[str] = None
-    review_step: Optional[DocumentReviewStep] = None
-    dic_completed_at: Optional[datetime] = None
-    idc_completed_at: Optional[datetime] = None
-    dcc_completed_at: Optional[datetime] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
     tags: Optional[List[str]] = None
