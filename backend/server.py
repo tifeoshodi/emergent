@@ -81,6 +81,11 @@ class DocumentStatus(str, Enum):
     SUPERSEDED = "superseded"
     ARCHIVED = "archived"
 
+class DocumentReviewStep(str, Enum):
+    DIC = "dic"  # Draft Internal Check
+    IDC = "idc"  # Issue for Design Check / Client approval
+    DCC = "dcc"  # Document Control Centre / final approval
+
 class DocumentCategory(str, Enum):
     ENGINEERING_DRAWING = "engineering_drawing"
     PIPING_DRAWING = "piping_drawing"
@@ -204,6 +209,10 @@ class Document(BaseModel):
     revision: Optional[str] = None
     discipline: Optional[str] = None  # Engineering discipline
     document_number: Optional[str] = None  # Unique document identifier
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     created_by: str
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
@@ -227,6 +236,10 @@ class DocumentCreate(BaseModel):
     revision: Optional[str] = None
     discipline: Optional[str] = None
     document_number: Optional[str] = None
+    review_step: DocumentReviewStep = DocumentReviewStep.DIC
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     tags: List[str] = []
     is_confidential: bool = False
     expiry_date: Optional[datetime] = None
@@ -242,6 +255,10 @@ class DocumentUpdate(BaseModel):
     revision: Optional[str] = None
     discipline: Optional[str] = None
     document_number: Optional[str] = None
+    review_step: Optional[DocumentReviewStep] = None
+    dic_completed_at: Optional[datetime] = None
+    idc_completed_at: Optional[datetime] = None
+    dcc_completed_at: Optional[datetime] = None
     reviewed_by: Optional[str] = None
     approved_by: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -1059,7 +1076,8 @@ async def upload_document(
             "document_number": document_number,
             "created_by": "default_user",  # TODO: Get from auth
             "tags": tag_list,
-            "is_confidential": is_confidential
+            "is_confidential": is_confidential,
+            "review_step": DocumentReviewStep.DIC
         }
         
         document_obj = Document(**document_data)
@@ -1141,6 +1159,47 @@ async def update_document(document_id: str, document_update: DocumentUpdate):
     updated_document = await db.documents.find_one({"id": document_id})
     return Document(**updated_document)
 
+@api_router.post("/documents/{document_id}/advance_review")
+async def advance_document_review(document_id: str, revision: bool = False):
+    """Move a document through the DIC -> IDC -> DCC workflow."""
+    document = await db.documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc = Document(**document)
+    update_data = {"updated_at": datetime.utcnow()}
+    notification = None
+
+    if revision:
+        update_data["review_step"] = DocumentReviewStep.DIC
+        update_data["status"] = DocumentStatus.DRAFT
+        notification = f"Document '{doc.title}' requires revisions and was returned to DIC"
+        if doc.task_id:
+            await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.IN_PROGRESS}})
+    else:
+        if doc.review_step == DocumentReviewStep.DIC:
+            update_data["review_step"] = DocumentReviewStep.IDC
+            update_data["dic_completed_at"] = datetime.utcnow()
+            update_data["status"] = DocumentStatus.UNDER_REVIEW
+            notification = f"Document '{doc.title}' sent for client approval"
+            if doc.task_id:
+                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.REVIEW}})
+        elif doc.review_step == DocumentReviewStep.IDC:
+            update_data["review_step"] = DocumentReviewStep.DCC
+            update_data["idc_completed_at"] = datetime.utcnow()
+            update_data["status"] = DocumentStatus.APPROVED
+            notification = f"Document '{doc.title}' approved and sent to document control"
+            if doc.task_id:
+                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.DONE}})
+        else:
+            return {"message": "Document already in final stage"}
+
+    await db.documents.update_one({"id": document_id}, {"$set": update_data})
+
+    updated_document = await db.documents.find_one({"id": document_id})
+    logger.info(notification)
+    return {"document": Document(**updated_document), "notification": notification}
+
 @api_router.put("/documents/{document_id}/status")
 async def update_document_status(document_id: str, status_update: dict):
     document = await db.documents.find_one({"id": document_id})
@@ -1150,18 +1209,21 @@ async def update_document_status(document_id: str, status_update: dict):
     new_status = status_update.get("status")
     reviewed_by = status_update.get("reviewed_by")
     approved_by = status_update.get("approved_by")
-    
+    review_step = status_update.get("review_step")
+
     update_data = {"updated_at": datetime.utcnow()}
-    
+
     if new_status:
         update_data["status"] = new_status
     if reviewed_by:
         update_data["reviewed_by"] = reviewed_by
     if approved_by:
         update_data["approved_by"] = approved_by
-    
+    if review_step:
+        update_data["review_step"] = review_step
+
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
-    
+
     updated_document = await db.documents.find_one({"id": document_id})
     return Document(**updated_document)
 
