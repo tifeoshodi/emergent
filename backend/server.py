@@ -621,7 +621,6 @@ async def get_tasks(
     If ``independent`` is ``True``, only tasks not tied to any project are
     returned and any provided ``project_id`` is ignored.
     """
-    query = {}
 
 
     if independent:
