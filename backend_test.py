@@ -13,7 +13,7 @@ def get_backend_url():
         with open('/app/frontend/.env', 'r') as f:
             for line in f:
                 if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.strip().split('=')[1].strip('"\'') + '/api'
+                    return line.strip().split('=')[1].strip("\"'") + '/api'
     except Exception as e:
         print(f"Error reading .env file: {e}")
         # Fallback to the existing URL if we can't read the .env file
