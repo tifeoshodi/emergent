@@ -42,6 +42,7 @@ async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> "
     return User(**user)
 
 
+
 async def send_notification(document: "Document", message: str, user_id: Optional[str] = None):
     """Store a document-related notification for later retrieval."""
     note = Notification(document_id=document.id, message=message, user_id=user_id)
@@ -486,6 +487,45 @@ async def get_disciplines():
     return [Discipline(**d) for d in disciplines]
 
 
+@api_router.post("/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline)
+async def add_discipline_member(discipline_name: str, user_id: str):
+    """Add a user to a discipline and update membership lists."""
+    discipline = await db.disciplines.find_one({"name": discipline_name})
+    if not discipline:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Remove from old discipline if necessary
+    if user.get("discipline") and user["discipline"] != discipline_name:
+        await db.disciplines.update_one({"name": user["discipline"]}, {"$pull": {"members": user_id}})
+
+    await db.disciplines.update_one({"name": discipline_name}, {"$addToSet": {"members": user_id}})
+    await db.users.update_one({"id": user_id}, {"$set": {"discipline": discipline_name}})
+
+    updated = await db.disciplines.find_one({"name": discipline_name})
+    return Discipline(**updated)
+
+
+@api_router.delete("/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline)
+async def remove_discipline_member(discipline_name: str, user_id: str):
+    """Remove a user from a discipline."""
+    discipline = await db.disciplines.find_one({"name": discipline_name})
+    if not discipline:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+
+    await db.disciplines.update_one({"name": discipline_name}, {"$pull": {"members": user_id}})
+
+    user = await db.users.find_one({"id": user_id})
+    if user and user.get("discipline") == discipline_name:
+        await db.users.update_one({"id": user_id}, {"$set": {"discipline": None}})
+
+    updated = await db.disciplines.find_one({"name": discipline_name})
+    return Discipline(**updated)
+
+
 # User endpoints
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
@@ -679,9 +719,9 @@ async def delete_task(task_id: str, current_user: User = Depends(get_current_use
 
 
 @api_router.delete("/users/{user_id}")
-async def delete_user(user_id: str):
+async def delete_user(user_id: str, current_user: User = Depends(get_current_user)):
     # Check if user is assigned to any tasks
-    assigned_tasks = await db.tasks.count_documents({"assigned_to": user_id})
+    assigned_tasks = await db.tasks.count_documents({"assigned_to": user_id, "discipline": current_user.discipline})
     if assigned_tasks > 0:
         raise HTTPException(
             status_code=400,
@@ -703,11 +743,11 @@ async def delete_user(user_id: str):
 
 
 @api_router.delete("/projects/{project_id}")
-async def delete_project(project_id: str, force: bool = False):
+async def delete_project(project_id: str, force: bool = False, current_user: User = Depends(get_current_user)):
     if force:
-        await db.tasks.delete_many({"project_id": project_id})
+        await db.tasks.delete_many({"project_id": project_id, "discipline": current_user.discipline})
     else:
-        project_tasks = await db.tasks.count_documents({"project_id": project_id})
+        project_tasks = await db.tasks.count_documents({"project_id": project_id, "discipline": current_user.discipline})
         if project_tasks > 0:
             raise HTTPException(
                 status_code=400,
@@ -722,30 +762,32 @@ async def delete_project(project_id: str, force: bool = False):
 
 
 @api_router.delete("/projects/{project_id}/force")
-async def force_delete_project(project_id: str):
-    return await delete_project(project_id, force=True)
+async def force_delete_project(project_id: str, current_user: User = Depends(get_current_user)):
+    return await delete_project(project_id, force=True, current_user=current_user)
 
 
 # Dashboard endpoint
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
-async def get_dashboard_stats():
+async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     # Count projects
     total_projects = await db.projects.count_documents({})
     active_projects = await db.projects.count_documents({"status": ProjectStatus.ACTIVE})
 
     # Count tasks
-    total_tasks = await db.tasks.count_documents({})
-    completed_tasks = await db.tasks.count_documents({"status": TaskStatus.DONE})
-    in_progress_tasks = await db.tasks.count_documents({"status": TaskStatus.IN_PROGRESS})
+    base_task_query = {"discipline": current_user.discipline}
+
+    total_tasks = await db.tasks.count_documents(base_task_query)
+    completed_tasks = await db.tasks.count_documents({**base_task_query, "status": TaskStatus.DONE})
+    in_progress_tasks = await db.tasks.count_documents({**base_task_query, "status": TaskStatus.IN_PROGRESS})
 
     # Count overdue tasks (simplified - tasks with due_date in past and not done)
     current_time = datetime.utcnow()
     overdue_tasks = await db.tasks.count_documents(
-        {"due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
+        {**base_task_query, "due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
     )
 
     # My tasks (placeholder - would normally use authenticated user)
-    my_tasks = await db.tasks.count_documents({"assigned_to": "default_user"})
+    my_tasks = await db.tasks.count_documents({**base_task_query, "assigned_to": "default_user"})
 
     return DashboardStats(
         total_projects=total_projects,
@@ -760,13 +802,14 @@ async def get_dashboard_stats():
 
 # Discipline dashboard metrics
 @api_router.get("/dashboard/discipline", response_model=DisciplineDashboard)
-async def get_discipline_dashboard(discipline: str):
+async def get_discipline_dashboard(current_user: User = Depends(get_current_user)):
+    discipline = current_user.discipline
     # Find all users within the discipline
     users = await db.users.find({"discipline": discipline}).to_list(1000)
     user_ids = [u["id"] for u in users]
 
     # Fetch tasks assigned to those users
-    tasks = await db.tasks.find({"assigned_to": {"$in": user_ids}}).to_list(1000)
+    tasks = await db.tasks.find({"assigned_to": {"$in": user_ids}, "discipline": discipline}).to_list(1000)
 
     # Count tasks by status
     status_counts = {s.value: 0 for s in TaskStatus}
@@ -825,24 +868,25 @@ async def get_discipline_dashboard(discipline: str):
 
 # Project-specific dashboard endpoint
 @api_router.get("/projects/{project_id}/dashboard", response_model=DashboardStats)
-async def get_project_dashboard_stats(project_id: str):
+async def get_project_dashboard_stats(project_id: str, current_user: User = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Count tasks for this project only
-    total_tasks = await db.tasks.count_documents({"project_id": project_id})
-    completed_tasks = await db.tasks.count_documents({"project_id": project_id, "status": TaskStatus.DONE})
-    in_progress_tasks = await db.tasks.count_documents({"project_id": project_id, "status": TaskStatus.IN_PROGRESS})
+    base_query = {"project_id": project_id, "discipline": current_user.discipline}
+    total_tasks = await db.tasks.count_documents(base_query)
+    completed_tasks = await db.tasks.count_documents({**base_query, "status": TaskStatus.DONE})
+    in_progress_tasks = await db.tasks.count_documents({**base_query, "status": TaskStatus.IN_PROGRESS})
 
     # Count overdue tasks for this project
     current_time = datetime.utcnow()
     overdue_tasks = await db.tasks.count_documents(
-        {"project_id": project_id, "due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
+        {**base_query, "due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
     )
 
     # Count milestones
-    milestones = await db.tasks.count_documents({"project_id": project_id, "is_milestone": True})
+    milestones = await db.tasks.count_documents({**base_query, "is_milestone": True})
 
     return DashboardStats(
         total_projects=1,  # Always 1 for project-specific
@@ -857,12 +901,12 @@ async def get_project_dashboard_stats(project_id: str):
 
 # Kanban board data for projects
 @api_router.get("/projects/{project_id}/kanban")
-async def get_project_kanban(project_id: str):
+async def get_project_kanban(project_id: str, current_user: User = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
 
     kanban_board = {"todo": [], "in_progress": [], "review": [], "done": []}
 
@@ -878,12 +922,12 @@ async def get_project_kanban(project_id: str):
 
 # Gantt Chart endpoints
 @api_router.get("/projects/{project_id}/gantt", response_model=GanttData)
-async def get_project_gantt(project_id: str):
+async def get_project_gantt(project_id: str, current_user: User = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
 
     gantt_tasks = []
     project_start = datetime.utcnow()
@@ -950,12 +994,12 @@ async def update_task_progress(task_id: str, progress: dict, current_user: User 
 
 # Resource Management endpoints
 @api_router.get("/projects/{project_id}/resources", response_model=ProjectResource)
-async def get_project_resources(project_id: str):
+async def get_project_resources(project_id: str, current_user: User = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
     users = await db.users.find().to_list(1000)
 
     # Calculate resource allocation
@@ -1015,11 +1059,11 @@ async def get_project_resources(project_id: str):
 
 
 @api_router.get("/resources/overview")
-async def get_resources_overview():
+async def get_resources_overview(current_user: User = Depends(get_current_user)):
     """Return high level utilization metrics for all resources."""
     try:
-        users = await db.users.find().to_list(1000)
-        tasks = await db.tasks.find({"assigned_to": {"$ne": None}}).to_list(1000)
+        users = await db.users.find({"discipline": current_user.discipline}).to_list(1000)
+        tasks = await db.tasks.find({"assigned_to": {"$ne": None}, "discipline": current_user.discipline}).to_list(1000)
     except Exception as exc:  # pragma: no cover - safety net
         logger.exception("Failed fetching resources")
         raise HTTPException(status_code=500, detail="Error fetching resources") from exc
@@ -1143,12 +1187,12 @@ def _calculate_cpm(tasks: List[Task]):
 
 
 @api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
-async def generate_project_wbs(project_id: str):
+async def generate_project_wbs(project_id: str, current_user: User = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks_data = await db.tasks.find({"project_id": project_id}).to_list(1000)
+    tasks_data = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
     tasks = [Task(**t) for t in tasks_data]
     if not tasks:
         raise HTTPException(status_code=404, detail="No tasks found for project")
@@ -1236,9 +1280,9 @@ async def update_epic(epic_id: str, epic_update: dict):
 
 
 @api_router.delete("/epics/{epic_id}")
-async def delete_epic(epic_id: str):
+async def delete_epic(epic_id: str, current_user: User = Depends(get_current_user)):
     # Check if epic has tasks
-    epic_tasks = await db.tasks.count_documents({"epic_id": epic_id})
+    epic_tasks = await db.tasks.count_documents({"epic_id": epic_id, "discipline": current_user.discipline})
     if epic_tasks > 0:
         raise HTTPException(
             status_code=400,
@@ -1302,9 +1346,9 @@ async def update_sprint(sprint_id: str, sprint_update: dict):
 
 
 @api_router.delete("/sprints/{sprint_id}")
-async def delete_sprint(sprint_id: str):
+async def delete_sprint(sprint_id: str, current_user: User = Depends(get_current_user)):
     # Remove sprint assignment from all tasks
-    await db.tasks.update_many({"sprint_id": sprint_id}, {"$unset": {"sprint_id": ""}})
+    await db.tasks.update_many({"sprint_id": sprint_id, "discipline": current_user.discipline}, {"$unset": {"sprint_id": ""}})
 
     result = await db.sprints.delete_one({"id": sprint_id})
     if result.deleted_count == 0:
@@ -1314,12 +1358,12 @@ async def delete_sprint(sprint_id: str):
 
 # Sprint Board (Kanban with sprint filtering)
 @api_router.get("/sprints/{sprint_id}/board")
-async def get_sprint_board(sprint_id: str):
+async def get_sprint_board(sprint_id: str, current_user: User = Depends(get_current_user)):
     sprint = await db.sprints.find_one({"id": sprint_id})
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
-    tasks = await db.tasks.find({"sprint_id": sprint_id}).to_list(1000)
+    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
 
     sprint_board = {"todo": [], "in_progress": [], "review": [], "done": []}
 
@@ -1332,13 +1376,13 @@ async def get_sprint_board(sprint_id: str):
 
 # Sprint analytics
 @api_router.get("/sprints/{sprint_id}/analytics")
-async def get_sprint_analytics(sprint_id: str):
+async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_current_user)):
     """Provide analytics and burndown information for a sprint."""
     sprint = await db.sprints.find_one({"id": sprint_id})
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
-    tasks = await db.tasks.find({"sprint_id": sprint_id}).to_list(1000)
+    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
 
     total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
     completed_story_points = sum(
