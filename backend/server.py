@@ -997,9 +997,23 @@ async def get_resources_overview():
             if not uid:
                 continue
             user_tasks = [t for t in tasks if t.get("assigned_to") == uid]
-            total_hours = sum(t.get("estimated_hours", 8) for t in user_tasks)
 
-            user_availability = float(user.get("availability", 1.0) or 0)
+            total_hours = 0.0
+            for t in user_tasks:
+                est_raw = t.get("estimated_hours", 8)
+                try:
+                    total_hours += float(est_raw)
+                except (TypeError, ValueError):
+                    logger.warning("Invalid estimated_hours %s for task %s", est_raw, t.get("id"))
+                    total_hours += 8
+
+            avail_raw = user.get("availability", 1.0)
+            try:
+                user_availability = float(avail_raw) if avail_raw is not None else 0.0
+            except (TypeError, ValueError):
+                logger.warning("Invalid availability %s for user %s", avail_raw, uid)
+                user_availability = 0.0
+
             available_hours = 40 * user_availability
             utilization = (total_hours / available_hours) * 100 if available_hours > 0 else 0
 
@@ -1303,8 +1317,15 @@ async def get_sprint_analytics(sprint_id: str):
     start_date_raw = sprint.get("start_date")
     end_date_raw = sprint.get("end_date")
 
-    start_date = start_date_raw if isinstance(start_date_raw, datetime) else datetime.fromisoformat(str(start_date_raw))
-    end_date = end_date_raw if isinstance(end_date_raw, datetime) else datetime.fromisoformat(str(end_date_raw))
+    if not start_date_raw or not end_date_raw:
+        raise HTTPException(status_code=400, detail="Sprint dates are missing")
+
+    try:
+        start_date = start_date_raw if isinstance(start_date_raw, datetime) else datetime.fromisoformat(str(start_date_raw))
+        end_date = end_date_raw if isinstance(end_date_raw, datetime) else datetime.fromisoformat(str(end_date_raw))
+    except Exception as exc:
+        logger.exception("Invalid sprint dates")
+        raise HTTPException(status_code=400, detail="Invalid sprint date format") from exc
 
     current_date = datetime.utcnow()
 

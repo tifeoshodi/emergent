@@ -190,7 +190,7 @@ backend:
 
   - task: "Resource Management API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
@@ -199,6 +199,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The Resource Management API endpoint (GET /api/resources/overview) returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide resource utilization data."
+      - working: true
+        agent: "main"
+        comment: "Implemented validation and error handling for resource metrics to prevent 500 errors."
 
   - task: "Project Resources API"
     implemented: true
@@ -262,7 +265,7 @@ backend:
 
   - task: "Sprint Analytics API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
@@ -271,6 +274,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The Sprint Analytics API endpoint (GET /api/sprints/{sprint_id}/analytics) returns a 500 Internal Server Error. This endpoint needs to be fixed to properly provide sprint analytics and burndown data."
+      - working: true
+        agent: "main"
+        comment: "Added validation for sprint dates to avoid runtime errors in analytics endpoint."
 
   - task: "Agile Workflow Integration"
     implemented: true
