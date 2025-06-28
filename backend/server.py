@@ -43,9 +43,19 @@ async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> "
 
 
 async def send_notification(document: "Document", message: str, user_id: Optional[str] = None):
+    """Store a document-related notification for later retrieval."""
     note = Notification(document_id=document.id, message=message, user_id=user_id)
     await db.notifications.insert_one(note.dict())
     logger.info(message)
+
+
+async def get_discipline_scope(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return a query filter enforcing the current user's discipline."""
+    if not current_user.discipline:
+        raise HTTPException(status_code=403, detail="User has no discipline assigned")
+    return {"discipline": current_user.discipline}
 
 
 # Enums
