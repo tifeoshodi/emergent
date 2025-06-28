@@ -638,6 +638,38 @@ def test_project_kanban():
     except Exception as e:
         log_test("Project Kanban", False, f"Exception: {str(e)}")
 
+def test_discipline_kanban():
+    """Test discipline-wide kanban board endpoint"""
+    if not created_users:
+        log_test("Discipline Kanban", False, "No users created to test with")
+        return
+
+    discipline = created_users[0]["discipline"]
+    try:
+        response = requests.get(f"{BACKEND_URL}/disciplines/{discipline}/kanban")
+        if response.status_code == 200:
+            board = response.json()
+            log_test("Discipline Kanban", True, f"Retrieved kanban for {discipline}")
+
+            statuses = ["todo", "in_progress", "review", "done"]
+            for status in statuses:
+                if status not in board["board"]:
+                    log_test(f"Discipline Kanban Status: {status}", False, f"Status {status} missing")
+                else:
+                    log_test(
+                        f"Discipline Kanban Status: {status}",
+                        True,
+                        f"Status {status} has {len(board['board'][status])} tasks",
+                    )
+        else:
+            log_test(
+                "Discipline Kanban",
+                False,
+                f"Status code: {response.status_code}, Response: {response.text}",
+            )
+    except Exception as e:
+        log_test("Discipline Kanban", False, f"Exception: {str(e)}")
+
 def test_project_dashboard():
     """Test project dashboard endpoint"""
     if not created_projects:
@@ -1999,6 +2031,7 @@ def run_all_tests():
     print("\n----- Testing Dashboard and Kanban Endpoints -----\n")
     test_dashboard_stats()
     test_project_kanban()
+    test_discipline_kanban()
     test_project_dashboard()
     test_user_data_in_resource_management()  # New test for user data in resource management
     
