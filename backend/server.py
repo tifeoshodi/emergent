@@ -919,6 +919,19 @@ async def get_project_kanban(project_id: str, current_user: User = Depends(get_c
         "board": kanban_board,
     }
 
+# Discipline-wide kanban board
+@api_router.get("/disciplines/{discipline}/kanban")
+async def get_discipline_kanban(discipline: str):
+    """Return all tasks for a discipline grouped by status."""
+    tasks = await db.tasks.find({"discipline": discipline}).to_list(1000)
+
+    board = {"todo": [], "in_progress": [], "review": [], "done": []}
+    for task in tasks:
+        task_obj = Task(**task)
+        board[task_obj.status.value].append(task_obj.dict())
+
+    return {"discipline": discipline, "board": board}
+
 
 # Gantt Chart endpoints
 @api_router.get("/projects/{project_id}/gantt", response_model=GanttData)
@@ -1540,6 +1553,8 @@ async def upload_document(
 async def parse_document_endpoint(
     file: UploadFile = File(...),
     project_id: Optional[str] = Form(None),
+    discipline: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload a CTR/MDR file, apply OCR and create tasks from the result."""
     try:
@@ -1553,12 +1568,18 @@ async def parse_document_endpoint(
 
         data = ocr_parse_document(temp_path)
 
+        # Use the provided discipline or fall back to the requesting user's
+        # discipline. This ensures created tasks are automatically placed in the
+        # correct backlog.
+        task_discipline = discipline or current_user.discipline
+
         created_tasks: List[Task] = []
         for item in data.get("tasks", []):
             task_data = {
                 "title": item.get("task", "Untitled Task"),
                 "description": f"Imported from {file.filename}",
-                "created_by": "ctr_ingest",
+                "created_by": current_user.id,
+                "discipline": task_discipline,
                 "project_id": project_id,
             }
             date_str = item.get("planned_date")

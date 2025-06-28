@@ -958,7 +958,12 @@ const UserManagement = () => {
   );
 };
 const TaskManagement = () => {
-  const [tasks, setTasks] = useState([]);
+  const [kanbanData, setKanbanData] = useState({
+    todo: [],
+    in_progress: [],
+    review: [],
+    done: []
+  });
   const [users, setUsers] = useState([]);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -979,7 +984,15 @@ const TaskManagement = () => {
     try {
       // Fetch tasks that are not associated with any project
       const response = await axios.get(`${API}/tasks?independent=true`);
-      setTasks(response.data);
+
+      const board = { todo: [], in_progress: [], review: [], done: [] };
+      response.data.forEach(task => {
+        if (board[task.status]) {
+          board[task.status].push(task);
+        }
+      });
+
+      setKanbanData(board);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     }
@@ -1122,20 +1135,14 @@ const TaskManagement = () => {
         </div>
       )}
 
-      {/* Tasks Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {tasks.map(task => (
-          <Components.TaskCard 
-            key={task.id} 
-            task={task} 
-            users={users} 
-            onStatusChange={updateTaskStatus}
-            onDelete={deleteTask}
-          />
-        ))}
-      </div>
+      <Components.DragDropKanbanBoard
+        kanbanData={kanbanData}
+        users={users}
+        onStatusChange={updateTaskStatus}
+        onDelete={deleteTask}
+      />
 
-      {tasks.length === 0 && (
+      {Object.values(kanbanData).every(col => col.length === 0) && (
         <div className="text-center py-12">
           <Components.TaskIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Tasks Yet</h3>
