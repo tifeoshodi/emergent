@@ -602,6 +602,7 @@ async def get_tasks(
     current_user: User = Depends(get_current_user),
 ):
 
+    # Base query always filters by the user's discipline
     query = {"discipline": current_user.discipline}
 
     """Retrieve tasks with optional filters.
