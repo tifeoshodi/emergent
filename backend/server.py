@@ -575,6 +575,11 @@ async def create_task(task: TaskCreate, current_user: User = Depends(get_current
     task_dict["created_by"] = current_user.id
     task_obj = Task(**task_dict)
     await db.tasks.insert_one(task_obj.dict())
+    if task_obj.project_id:
+        try:
+            await generate_project_wbs(task_obj.project_id)
+        except Exception as e:
+            logging.error(f"Failed to update WBS for project {task_obj.project_id}: {e}")
     return task_obj
 
 
@@ -628,6 +633,11 @@ async def update_task(task_id: str, task_update: TaskUpdate, current_user: User 
     await db.tasks.update_one({"id": task_id}, {"$set": update_data})
 
     updated_task = await db.tasks.find_one({"id": task_id})
+    if updated_task.get("project_id"):
+        try:
+            await generate_project_wbs(updated_task["project_id"])
+        except Exception as e:
+            logging.error(f"Failed to update WBS for project {updated_task.get('project_id')}: {e}")
     return Task(**updated_task)
 
 
