@@ -1458,8 +1458,11 @@ async def upload_document(
 
 
 @api_router.post("/documents/parse")
-async def parse_document_endpoint(file: UploadFile = File(...)):
-    """Upload a CTR/MDR file, apply OCR and return structured data."""
+async def parse_document_endpoint(
+    file: UploadFile = File(...),
+    project_id: Optional[str] = Form(None),
+):
+    """Upload a CTR/MDR file, apply OCR and create tasks from the result."""
     try:
         documents_dir = ROOT_DIR / "documents"
         documents_dir.mkdir(exist_ok=True)
@@ -1470,6 +1473,39 @@ async def parse_document_endpoint(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
 
         data = ocr_parse_document(temp_path)
+
+        created_tasks: List[Task] = []
+        for item in data.get("tasks", []):
+            task_data = {
+                "title": item.get("task", "Untitled Task"),
+                "description": f"Imported from {file.filename}",
+                "created_by": "ctr_ingest",
+                "project_id": project_id,
+            }
+            date_str = item.get("planned_date")
+            if date_str:
+                try:
+                    task_data["due_date"] = datetime.fromisoformat(date_str)
+                except Exception:
+                    pass
+
+            task_obj = Task(**task_data)
+            await db.tasks.insert_one(task_obj.dict())
+
+            node = WBSNode(
+                project_id=project_id or "",  # empty string if no project
+                task_id=task_obj.id,
+                title=task_obj.title,
+                duration_days=task_obj.duration_days or 1.0,
+                predecessors=task_obj.predecessor_tasks,
+                early_start=0.0,
+                early_finish=task_obj.duration_days or 1.0,
+                is_critical=False,
+            )
+            await db.wbs.insert_one(node.dict())
+            created_tasks.append(task_obj)
+
+        data["created_tasks"] = [t.dict() for t in created_tasks]
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
