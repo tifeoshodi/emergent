@@ -42,6 +42,14 @@ async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> "
     return User(**user)
 
 
+
+async def send_notification(document: "Document", message: str, user_id: Optional[str] = None):
+    """Store a document-related notification for later retrieval."""
+    note = Notification(document_id=document.id, message=message, user_id=user_id)
+    await db.notifications.insert_one(note.dict())
+    logger.info(message)
+
+
 async def get_discipline_scope(
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -297,6 +305,15 @@ class DocumentUpdate(BaseModel):
     tags: Optional[List[str]] = None
     is_confidential: Optional[bool] = None
     expiry_date: Optional[datetime] = None
+
+
+class Notification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    document_id: str
+    message: str
+    user_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    read: bool = False
 
 
 class Task(BaseModel):
@@ -1606,6 +1623,12 @@ async def get_documents(
     return [Document(**doc) for doc in documents]
 
 
+@api_router.get("/documents/dcc", response_model=List[Document])
+async def get_dcc_documents(current_user: User = Depends(get_current_user)):
+    docs = await db.documents.find({"review_step": DocumentReviewStep.DCC}).to_list(1000)
+    return [Document(**d) for d in docs]
+
+
 @api_router.get("/documents/{document_id}", response_model=Document)
 async def get_document(document_id: str, current_user: User = Depends(get_current_user)):
     document = await db.documents.find_one({"id": document_id})
@@ -1641,7 +1664,24 @@ async def update_document(
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
 
     updated_document = await db.documents.find_one({"id": document_id})
+    if new_status or review_step:
+        status_val = update_data.get("status", document["status"]) if new_status else document["status"]
+        msg = f"Document '{document['title']}' status updated to {status_val}"
+        await send_notification(Document(**updated_document), msg, user_id=document.get("created_by"))
     return Document(**updated_document)
+
+
+@api_router.post("/documents/{document_id}/dcc_finalize")
+async def finalize_document(document_id: str, current_user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"id": document_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    update_data = {"dcc_completed_at": datetime.utcnow()}
+    await db.documents.update_one({"id": document_id}, {"$set": update_data})
+    updated = await db.documents.find_one({"id": document_id})
+    await send_notification(Document(**updated), f"Document '{updated['title']}' finalized by DCC", user_id=doc.get("created_by"))
+    return Document(**updated)
 
 
 @api_router.post("/documents/{document_id}/advance_review")
@@ -1682,7 +1722,8 @@ async def advance_document_review(document_id: str, revision: bool = False):
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
 
     updated_document = await db.documents.find_one({"id": document_id})
-    logger.info(notification)
+    if notification:
+        await send_notification(Document(**updated_document), notification, user_id=doc.created_by)
     return {"document": Document(**updated_document), "notification": notification}
 
 
@@ -1711,6 +1752,10 @@ async def update_document_status(document_id: str, status_update: dict, current_
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
 
     updated_document = await db.documents.find_one({"id": document_id})
+    if new_status or review_step:
+        status_val = update_data.get("status", document["status"]) if new_status else document["status"]
+        msg = f"Document '{document['title']}' status updated to {status_val}"
+        await send_notification(Document(**updated_document), msg, user_id=document.get("created_by"))
     return Document(**updated_document)
 
 
@@ -1731,6 +1776,12 @@ async def delete_document(document_id: str, current_user: User = Depends(get_cur
         raise HTTPException(status_code=404, detail="Document not found")
 
     return {"message": "Document deleted successfully"}
+
+
+@api_router.get("/notifications", response_model=List[Notification])
+async def get_notifications(current_user: User = Depends(get_current_user)):
+    notes = await db.notifications.find({"user_id": current_user.id}).to_list(1000)
+    return [Notification(**n) for n in notes]
 
 
 # Document analytics
