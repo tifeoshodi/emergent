@@ -419,6 +419,13 @@ class DisciplineDashboard(BaseModel):
     projects: List[ProjectProgress]
 
 
+class DisciplineProjectSummary(BaseModel):
+    """Summary of a project that a discipline is involved in."""
+    project: Project
+    task_count: int
+    document_count: int
+
+
 # Gantt Chart models
 class GanttTask(BaseModel):
     id: str
@@ -931,6 +938,33 @@ async def get_discipline_kanban(discipline: str):
         board[task_obj.status.value].append(task_obj.dict())
 
     return {"discipline": discipline, "board": board}
+
+
+@api_router.get("/disciplines/{discipline}/projects", response_model=List[DisciplineProjectSummary])
+async def get_discipline_projects(discipline: str):
+    """Return projects with tasks or documents for the given discipline."""
+    task_ids = await db.tasks.distinct("project_id", {"discipline": discipline, "project_id": {"$ne": None}})
+    doc_ids = await db.documents.distinct("project_id", {"discipline": discipline, "project_id": {"$ne": None}})
+    project_ids = list(set(task_ids) | set(doc_ids))
+
+    projects: List[DisciplineProjectSummary] = []
+    for pid in project_ids:
+        project = await db.projects.find_one({"id": pid})
+        if not project:
+            continue
+
+        task_count = await db.tasks.count_documents({"project_id": pid, "discipline": discipline})
+        doc_count = await db.documents.count_documents({"project_id": pid, "discipline": discipline})
+
+        projects.append(
+            DisciplineProjectSummary(
+                project=Project(**project),
+                task_count=task_count,
+                document_count=doc_count,
+            )
+        )
+
+    return projects
 
 
 # Gantt Chart endpoints
