@@ -231,12 +231,10 @@ class SprintCreate(BaseModel):
     velocity_target: Optional[int] = None
 
 
-class Document(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+class DocumentBase(BaseModel):
     title: str
     description: str
     category: DocumentCategory
-    status: DocumentStatus = DocumentStatus.DRAFT
     project_id: Optional[str] = None  # Associated project
     task_id: Optional[str] = None  # Associated task
     file_name: str
@@ -251,37 +249,23 @@ class Document(BaseModel):
     dic_completed_at: Optional[datetime] = None
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
-    created_by: str
-    reviewed_by: Optional[str] = None
-    approved_by: Optional[str] = None
     tags: List[str] = []
     is_confidential: bool = False
     expiry_date: Optional[datetime] = None  # For certificates, etc.
+
+
+class Document(DocumentBase):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    status: DocumentStatus = DocumentStatus.DRAFT
+    created_by: str
+    reviewed_by: Optional[str] = None
+    approved_by: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class DocumentCreate(BaseModel):
-    title: str
-    description: str
-    category: DocumentCategory
-    project_id: Optional[str] = None
-    task_id: Optional[str] = None
-    file_name: str
-    file_size: int
-    file_type: str
-    file_path: str
-    version: str = "1.0"
-    revision: Optional[str] = None
-    discipline: Optional[str] = None
-    document_number: Optional[str] = None
-    review_step: DocumentReviewStep = DocumentReviewStep.DIC
-    dic_completed_at: Optional[datetime] = None
-    idc_completed_at: Optional[datetime] = None
-    dcc_completed_at: Optional[datetime] = None
-    tags: List[str] = []
-    is_confidential: bool = False
-    expiry_date: Optional[datetime] = None
+class DocumentCreate(DocumentBase):
+    pass
 
 
 class DocumentUpdate(BaseModel):
@@ -1435,8 +1419,6 @@ async def upload_document(
             "created_by": current_user.id,
             "tags": tag_list,
             "is_confidential": is_confidential,
-
-            "review_step": DocumentReviewStep.DIC
 
         }
 
