@@ -1429,17 +1429,6 @@ async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
-    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
-
-    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
-    completed_story_points = sum(
-        task.get("story_points", 0) for task in tasks if task.get("story_points") and task.get("status") == "done"
-    )
-
-    total_tasks = len(tasks)
-    completed_tasks = len([task for task in tasks if task.get("status") == "done"])
-
-    # Calculate days elapsed and remaining
     start_date_raw = sprint.get("start_date")
     end_date_raw = sprint.get("end_date")
 
@@ -1452,6 +1441,16 @@ async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_
     except Exception as exc:
         logger.exception("Invalid sprint dates")
         raise HTTPException(status_code=400, detail="Invalid sprint date format") from exc
+
+    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
+
+    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
+    completed_story_points = sum(
+        task.get("story_points", 0) for task in tasks if task.get("story_points") and task.get("status") == "done"
+    )
+
+    total_tasks = len(tasks)
+    completed_tasks = len([task for task in tasks if task.get("status") == "done"])
 
     current_date = datetime.utcnow()
 
