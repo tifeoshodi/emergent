@@ -1045,6 +1045,29 @@ const TaskManagement = () => {
     }
   };
 
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination ||
+        (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return;
+    }
+
+    const sourceCol = source.droppableId;
+    const destCol = destination.droppableId;
+
+    const movedItem = kanbanData[sourceCol][source.index];
+    const newSourceItems = Array.from(kanbanData[sourceCol]);
+    newSourceItems.splice(source.index, 1);
+    const newDestItems = Array.from(kanbanData[destCol]);
+    newDestItems.splice(destination.index, 0, movedItem);
+
+    setKanbanData(prev => ({
+      ...prev,
+      [sourceCol]: newSourceItems,
+      [destCol]: newDestItems
+    }));
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -1139,6 +1162,7 @@ const TaskManagement = () => {
         kanbanData={kanbanData}
         users={users}
         onStatusChange={updateTaskStatus}
+        onDragEnd={handleDragEnd}
         onDelete={deleteTask}
       />
 
@@ -1307,7 +1331,7 @@ const ProjectManagement = () => {
   const deleteTask = async (taskId) => {
     try {
       await axios.delete(`${API}/tasks/${taskId}`);
-      
+
       // Always refresh kanban data when task is deleted
       if (selectedProject) {
         const response = await axios.get(`${API}/projects/${selectedProject.id}/kanban`);
@@ -1326,6 +1350,29 @@ const ProjectManagement = () => {
       console.error('Error deleting task:', error);
       alert('Failed to delete task. Please try again.');
     }
+  };
+
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination ||
+        (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return;
+    }
+
+    const sourceCol = source.droppableId;
+    const destCol = destination.droppableId;
+
+    const movedItem = kanbanData[sourceCol][source.index];
+    const newSourceItems = Array.from(kanbanData[sourceCol]);
+    newSourceItems.splice(source.index, 1);
+    const newDestItems = Array.from(kanbanData[destCol]);
+    newDestItems.splice(destination.index, 0, movedItem);
+
+    setKanbanData(prev => ({
+      ...prev,
+      [sourceCol]: newSourceItems,
+      [destCol]: newDestItems
+    }));
   };
 
   const deleteProject = async (projectId, force = false) => {
@@ -1362,13 +1409,13 @@ const ProjectManagement = () => {
 
     switch (currentView) {
       case 'kanban':
-        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDelete={deleteTask} />;
+        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
       case 'gantt':
         return <Components.GanttChart ganttData={ganttData} users={users} />;
       case 'resources':
         return <Components.ResourceManagement resources={resourceData} />;
       default:
-        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDelete={deleteTask} />;
+        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
     }
   };
 
