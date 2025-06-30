@@ -1128,17 +1128,18 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
             for t in user_tasks:
                 est_raw = t.get("estimated_hours", 8)
                 try:
-                    total_hours += float(est_raw)
-                except (TypeError, ValueError):
-                    logger.warning("Invalid estimated_hours %s for task %s", est_raw, t.get("id"))
-                    total_hours += 8
+                    est_hours = float(est_raw)
+                except (TypeError, ValueError) as exc:
+                    detail = f"Invalid estimated_hours '{est_raw}' for task {t.get('id')}"
+                    raise HTTPException(status_code=400, detail=detail) from exc
+                total_hours += est_hours
 
             avail_raw = user.get("availability", 1.0)
             try:
                 user_availability = float(avail_raw) if avail_raw is not None else 0.0
-            except (TypeError, ValueError):
-                logger.warning("Invalid availability %s for user %s", avail_raw, uid)
-                user_availability = 0.0
+            except (TypeError, ValueError) as exc:
+                detail = f"Invalid availability '{avail_raw}' for user {uid}"
+                raise HTTPException(status_code=400, detail=detail) from exc
 
             available_hours = 40 * user_availability
             utilization = (total_hours / available_hours) * 100 if available_hours > 0 else 0
@@ -1156,6 +1157,8 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
                     "active_tasks": len([t for t in user_tasks if t.get("status") != "done"]),
                 }
             )
+        except HTTPException:
+            raise
         except Exception:
             logger.exception("Error processing resource metrics for user %s", user.get("id"))
             continue
