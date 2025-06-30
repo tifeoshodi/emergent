@@ -6,6 +6,11 @@ import uuid
 import sys
 import os
 import random
+import pytest
+
+# Skip these integration tests by default as they require a running backend
+if os.environ.get("RUN_BACKEND_TESTS", "false").lower() not in {"1", "true", "yes"}:
+    pytest.skip("Skipping backend integration tests", allow_module_level=True)
 
 # Get Backend URL from frontend/.env
 def get_backend_url():
