@@ -2321,7 +2321,7 @@ const DocumentControlCenter = () => {
     </div>
   );
 };
-const Navigation = ({ currentPage, setCurrentPage }) => {
+const Navigation = ({ currentPage }) => {
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -2336,48 +2336,48 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
               </Link>
             </div>
             <div className="ml-10 flex items-baseline space-x-4">
-              <button
-                onClick={() => setCurrentPage('dashboard')}
+              <Link
+                to="/dashboard"
                 className={`nav-item ${currentPage === 'dashboard' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.ChartIcon className="h-4 w-4 inline mr-1" />
                 Dashboard
-              </button>
-              <button
-                onClick={() => setCurrentPage('tasks')}
+              </Link>
+              <Link
+                to="/tasks"
                 className={`nav-item ${currentPage === 'tasks' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.TaskIcon className="h-4 w-4 inline mr-1" />
                 Tasks
-              </button>
-              <button
-                onClick={() => setCurrentPage('projects')}
+              </Link>
+              <Link
+                to="/projects"
                 className={`nav-item ${currentPage === 'projects' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.ProjectIcon className="h-4 w-4 inline mr-1" />
                 Projects
-              </button>
-              <button
-                onClick={() => setCurrentPage('users')}
+              </Link>
+              <Link
+                to="/users"
                 className={`nav-item ${currentPage === 'users' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.UserIcon className="h-4 w-4 inline mr-1" />
                 Team
-              </button>
-              <button
-                onClick={() => setCurrentPage('documents')}
+              </Link>
+              <Link
+                to="/documents"
                 className={`nav-item ${currentPage === 'documents' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
-              </button>
-              <button
-                onClick={() => setCurrentPage('dcc')}
+              </Link>
+              <Link
+                to="/dcc"
                 className={`nav-item ${currentPage === 'dcc' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Control Center
-              </button>
+              </Link>
             </div>
           </div>
           <div className="flex items-center">
@@ -2396,26 +2396,6 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
 };
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home');
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'tasks':
-        return <TaskManagement />;
-      case 'projects':
-        return <ProjectManagement />;
-      case 'dashboard':
-        return <Dashboard />;
-      case 'users':
-        return <UserManagement />;
-      case 'documents':
-        return <DocumentManagementPage />;
-      case 'dcc':
-        return <DocumentControlCenter />;
-      default:
-        return <HomePage />;
-    }
-  };
 
   return (
     <div className="App min-h-screen bg-gray-50">
@@ -2423,37 +2403,37 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/dashboard" element={
           <>
-            <Navigation currentPage="dashboard" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="dashboard" />
             <main><Dashboard /></main>
           </>
         } />
         <Route path="/tasks" element={
           <>
-            <Navigation currentPage="tasks" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="tasks" />
             <main><TaskManagement /></main>
           </>
         } />
         <Route path="/projects" element={
           <>
-            <Navigation currentPage="projects" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="projects" />
             <main><ProjectManagement /></main>
           </>
         } />
         <Route path="/users" element={
           <>
-            <Navigation currentPage="users" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="users" />
             <main><UserManagement /></main>
           </>
         } />
         <Route path="/documents" element={
           <>
-            <Navigation currentPage="documents" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="documents" />
             <main><DocumentManagementPage /></main>
           </>
         } />
         <Route path="/dcc" element={
           <>
-            <Navigation currentPage="dcc" setCurrentPage={setCurrentPage} />
+            <Navigation currentPage="dcc" />
             <main><DocumentControlCenter /></main>
           </>
         } />
