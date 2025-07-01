@@ -19,7 +19,7 @@ import logging
 from pathlib import Path
 from document_parser import parse_document as ocr_parse_document
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
@@ -476,6 +476,7 @@ class WBSNode(BaseModel):
     early_start: float
     early_finish: float
     is_critical: bool = False
+    wbs_group: Optional[str] = None
 
 
 # Resource allocation models
@@ -1411,6 +1412,47 @@ def _calculate_cpm(tasks: List[Task]):
     return critical_path, results
 
 
+# Default grouping rules for building the WBS tree
+DEFAULT_WBS_RULES: Dict[str, Any] = {
+    "discipline": True,
+    "phase": True,
+    "deliverable_prefixes": {},
+}
+
+
+def build_wbs_tree(tasks: List[Task], rules: Dict[str, Any]) -> Dict[str, List[Task]]:
+    """Group tasks based on the provided rules."""
+    tree: Dict[str, List[Task]] = {}
+    prefixes = rules.get("deliverable_prefixes", {})
+    for t in tasks:
+        group: Optional[str] = None
+
+        # Match deliverable prefixes first
+        for prefix, name in prefixes.items():
+            if t.title.lower().startswith(prefix.lower()):
+                group = name
+                break
+
+        # Group by phase if available
+        if group is None and rules.get("phase"):
+            phase_val = getattr(t, "phase", None)
+            if phase_val:
+                group = str(phase_val)
+
+        # Group by discipline
+        if group is None and rules.get("discipline"):
+            disc_val = getattr(t, "discipline", None)
+            if disc_val:
+                group = str(disc_val)
+
+        if group is None:
+            group = "Uncategorized"
+
+        tree.setdefault(group, []).append(t)
+
+    return tree
+
+
 async def _generate_project_wbs(
     project_id: str, current_user: User, session: ClientSession | None = None
 ):
@@ -1431,21 +1473,24 @@ async def _generate_project_wbs(
     await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
-    for t in tasks:
-        m = metrics[t.id]
-        node_data = {
-            "project_id": project_id,
-            "task_id": t.id,
-            "title": t.title,
-            "duration_days": m["duration"],
-            "predecessors": t.predecessor_tasks,
-            "early_start": m["early_start"],
-            "early_finish": m["early_finish"],
-            "is_critical": m["is_critical"],
-        }
-        node = WBSNode(**node_data)
-        await db.wbs.insert_one(node.dict(), session=session)
-        nodes.append(node)
+    grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
+    for group_name, group_tasks in grouped.items():
+        for t in group_tasks:
+            m = metrics[t.id]
+            node_data = {
+                "project_id": project_id,
+                "task_id": t.id,
+                "title": t.title,
+                "duration_days": m["duration"],
+                "predecessors": t.predecessor_tasks,
+                "early_start": m["early_start"],
+                "early_finish": m["early_finish"],
+                "is_critical": m["is_critical"],
+                "wbs_group": group_name,
+            }
+            node = WBSNode(**node_data)
+            await db.wbs.insert_one(node.dict(), session=session)
+            nodes.append(node)
 
     return nodes
 
