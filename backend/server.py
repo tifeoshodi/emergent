@@ -18,9 +18,9 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 # MongoDB connection
-mongo_url = os.environ["MONGO_URL"]
+mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ["DB_NAME"]]
+db = client[os.environ.get("DB_NAME", "pmfusion_db")]
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -51,7 +51,7 @@ async def send_notification(document: "Document", message: str, user_id: Optiona
 
 
 async def get_discipline_scope(
-    current_user: User = Depends(get_current_user),
+    current_user: "User" = Depends(get_current_user),
 ) -> dict:
     """Return a query filter enforcing the current user's discipline."""
     if not current_user.discipline:
@@ -1898,3 +1898,8 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
