@@ -36,6 +36,23 @@ def load_server(monkeypatch, sprint_data):
 
     dummy_db = DummyDB()
 
+    class DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def start_transaction(self):
+            class DummyTxn:
+                async def __aenter__(self_inner):
+                    return self_inner
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    pass
+
+            return DummyTxn()
+
     class DummyClient:
         def __init__(self, _db):
             self._db = _db
@@ -43,7 +60,13 @@ def load_server(monkeypatch, sprint_data):
         def __getitem__(self, name):
             return self._db
 
-    monkeypatch.setattr("motor.motor_asyncio.AsyncIOMotorClient", lambda url: DummyClient(dummy_db))
+        async def start_session(self):
+            return DummySession()
+
+    monkeypatch.setattr(
+        "motor.motor_asyncio.AsyncIOMotorClient",
+        lambda *a, **kw: DummyClient(dummy_db),
+    )
 
     server_path = os.path.join(os.path.dirname(__file__), "..", "backend", "server.py")
     with open(server_path, "r") as f:

@@ -1,9 +1,19 @@
 from __future__ import annotations
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, UploadFile, Form, Header
+from fastapi import (
+    FastAPI,
+    APIRouter,
+    HTTPException,
+    Depends,
+    File,
+    UploadFile,
+    Form,
+    Header,
+)
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.client_session import ClientSession
 import os
 import logging
 from pathlib import Path
@@ -22,12 +32,14 @@ load_dotenv(ROOT_DIR / ".env")
 mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 client = AsyncIOMotorClient(
     mongo_url,
-    serverSelectionTimeoutMS=5_000,   # 5 s DNS / cluster resolution
-    connectTimeoutMS=5_000,           # 5 s socket connect
+    serverSelectionTimeoutMS=5_000,  # 5 s DNS / cluster resolution
+    connectTimeoutMS=5_000,  # 5 s socket connect
 )
 # fail fast during startup (optional but recommended)
 # await client.admin.command("ping")
-db = client[os.environ.get("DB_NAME", "pmfusion_db")]# Create the main app without a prefix
+db = client[
+    os.environ.get("DB_NAME", "pmfusion_db")
+]  # Create the main app without a prefix
 app = FastAPI()
 
 # Create a router with the /api prefix
@@ -47,8 +59,9 @@ async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> U
     return User(**user)
 
 
-
-async def send_notification(document: "Document", message: str, user_id: Optional[str] = None):
+async def send_notification(
+    document: "Document", message: str, user_id: Optional[str] = None
+):
     """Store a document-related notification for later retrieval."""
     note = Notification(document_id=document.id, message=message, user_id=user_id)
     await db.notifications.insert_one(note.dict())
@@ -119,12 +132,10 @@ class DocumentStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-
 class DocumentReviewStep(str, Enum):
     DIC = "dic"  # Discipline Internal Check
     IDC = "idc"  # Inter Discipline Check
     DCC = "dcc"  # Document Control Centre / Client Feedback & Approval
-
 
 
 class DocumentCategory(str, Enum):
@@ -426,6 +437,7 @@ class DisciplineDashboard(BaseModel):
 
 class DisciplineProjectSummary(BaseModel):
     """Summary of a project that a discipline is involved in."""
+
     project: Project
     task_count: int
     document_count: int
@@ -499,7 +511,9 @@ async def get_disciplines():
     return [Discipline(**d) for d in disciplines]
 
 
-@api_router.post("/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline)
+@api_router.post(
+    "/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline
+)
 async def add_discipline_member(discipline_name: str, user_id: str):
     """Add a user to a discipline and update membership lists."""
     discipline = await db.disciplines.find_one({"name": discipline_name})
@@ -512,23 +526,33 @@ async def add_discipline_member(discipline_name: str, user_id: str):
 
     # Remove from old discipline if necessary
     if user.get("discipline") and user["discipline"] != discipline_name:
-        await db.disciplines.update_one({"name": user["discipline"]}, {"$pull": {"members": user_id}})
+        await db.disciplines.update_one(
+            {"name": user["discipline"]}, {"$pull": {"members": user_id}}
+        )
 
-    await db.disciplines.update_one({"name": discipline_name}, {"$addToSet": {"members": user_id}})
-    await db.users.update_one({"id": user_id}, {"$set": {"discipline": discipline_name}})
+    await db.disciplines.update_one(
+        {"name": discipline_name}, {"$addToSet": {"members": user_id}}
+    )
+    await db.users.update_one(
+        {"id": user_id}, {"$set": {"discipline": discipline_name}}
+    )
 
     updated = await db.disciplines.find_one({"name": discipline_name})
     return Discipline(**updated)
 
 
-@api_router.delete("/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline)
+@api_router.delete(
+    "/disciplines/{discipline_name}/members/{user_id}", response_model=Discipline
+)
 async def remove_discipline_member(discipline_name: str, user_id: str):
     """Remove a user from a discipline."""
     discipline = await db.disciplines.find_one({"name": discipline_name})
     if not discipline:
         raise HTTPException(status_code=404, detail="Discipline not found")
 
-    await db.disciplines.update_one({"name": discipline_name}, {"$pull": {"members": user_id}})
+    await db.disciplines.update_one(
+        {"name": discipline_name}, {"$pull": {"members": user_id}}
+    )
 
     user = await db.users.find_one({"id": user_id})
     if user and user.get("discipline") == discipline_name:
@@ -595,7 +619,9 @@ async def create_project(project: ProjectCreate):
         raise HTTPException(status_code=404, detail="Project manager not found")
 
     project_dict = project.dict()
-    project_dict["created_by"] = project.project_manager_id  # For now, assume creator is PM
+    project_dict["created_by"] = (
+        project.project_manager_id
+    )  # For now, assume creator is PM
     project_dict["status"] = ProjectStatus.PLANNING
     project_obj = Project(**project_dict)
     await db.projects.insert_one(project_obj.dict())
@@ -648,15 +674,24 @@ async def create_task(task: TaskCreate, current_user: User = Depends(get_current
     if task_dict.get("discipline") is None:
         task_dict["discipline"] = current_user.discipline
     elif task_dict["discipline"] != current_user.discipline:
-        raise HTTPException(status_code=403, detail="Cannot create task for another discipline")
+        raise HTTPException(
+            status_code=403, detail="Cannot create task for another discipline"
+        )
     task_dict["created_by"] = current_user.id
     task_obj = Task(**task_dict)
-    await db.tasks.insert_one(task_obj.dict())
-    if task_obj.project_id:
-        try:
-            await generate_project_wbs(task_obj.project_id)
-        except Exception as e:
-            logging.error(f"Failed to update WBS for project {task_obj.project_id}: {e}")
+
+    async with await client.start_session() as session:
+        async with session.start_transaction():
+            await db.tasks.insert_one(task_obj.dict(), session=session)
+            if task_obj.project_id:
+                try:
+                    await _generate_project_wbs(
+                        task_obj.project_id, current_user, session=session
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"Failed to update WBS for project {task_obj.project_id}: {e}"
+                    )
     return task_obj
 
 
@@ -676,7 +711,6 @@ async def get_tasks(
     If ``independent`` is ``True``, only tasks not tied to any project are
     returned and any provided ``project_id`` is ignored.
     """
-
 
     if independent:
         query["project_id"] = None
@@ -699,7 +733,11 @@ async def get_task(task_id: str, current_user: User = Depends(get_current_user))
 
 
 @api_router.put("/tasks/{task_id}", response_model=Task)
-async def update_task(task_id: str, task_update: TaskUpdate, current_user: User = Depends(get_current_user)):
+async def update_task(
+    task_id: str,
+    task_update: TaskUpdate,
+    current_user: User = Depends(get_current_user),
+):
     task = await db.tasks.find_one({"id": task_id})
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -707,14 +745,23 @@ async def update_task(task_id: str, task_update: TaskUpdate, current_user: User 
     update_data = {k: v for k, v in task_update.dict().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
 
-    await db.tasks.update_one({"id": task_id}, {"$set": update_data})
+    async with await client.start_session() as session:
+        async with session.start_transaction():
+            await db.tasks.update_one(
+                {"id": task_id}, {"$set": update_data}, session=session
+            )
 
+            updated_task = await db.tasks.find_one({"id": task_id}, session=session)
+            if updated_task.get("project_id"):
+                try:
+                    await _generate_project_wbs(
+                        updated_task["project_id"], current_user, session=session
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"Failed to update WBS for project {updated_task.get('project_id')}: {e}"
+                    )
     updated_task = await db.tasks.find_one({"id": task_id})
-    if updated_task.get("project_id"):
-        try:
-            await generate_project_wbs(updated_task["project_id"])
-        except Exception as e:
-            logging.error(f"Failed to update WBS for project {updated_task.get('project_id')}: {e}")
     return Task(**updated_task)
 
 
@@ -724,16 +771,29 @@ async def delete_task(task_id: str, current_user: User = Depends(get_current_use
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    result = await db.tasks.delete_one({"id": task_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Task not found")
+    async with await client.start_session() as session:
+        async with session.start_transaction():
+            result = await db.tasks.delete_one({"id": task_id}, session=session)
+            if result.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="Task not found")
+            if task.get("project_id"):
+                try:
+                    await _generate_project_wbs(
+                        task["project_id"], current_user, session=session
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"Failed to update WBS for project {task.get('project_id')}: {e}"
+                    )
     return {"message": "Task deleted successfully"}
 
 
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: User = Depends(get_current_user)):
     # Check if user is assigned to any tasks
-    assigned_tasks = await db.tasks.count_documents({"assigned_to": user_id, "discipline": current_user.discipline})
+    assigned_tasks = await db.tasks.count_documents(
+        {"assigned_to": user_id, "discipline": current_user.discipline}
+    )
     if assigned_tasks > 0:
         raise HTTPException(
             status_code=400,
@@ -741,7 +801,9 @@ async def delete_user(user_id: str, current_user: User = Depends(get_current_use
         )
 
     # Check if user is a project manager
-    managed_projects = await db.projects.count_documents({"project_manager_id": user_id})
+    managed_projects = await db.projects.count_documents(
+        {"project_manager_id": user_id}
+    )
     if managed_projects > 0:
         raise HTTPException(
             status_code=400,
@@ -755,11 +817,17 @@ async def delete_user(user_id: str, current_user: User = Depends(get_current_use
 
 
 @api_router.delete("/projects/{project_id}")
-async def delete_project(project_id: str, force: bool = False, current_user: User = Depends(get_current_user)):
+async def delete_project(
+    project_id: str, force: bool = False, current_user: User = Depends(get_current_user)
+):
     if force:
-        await db.tasks.delete_many({"project_id": project_id, "discipline": current_user.discipline})
+        await db.tasks.delete_many(
+            {"project_id": project_id, "discipline": current_user.discipline}
+        )
     else:
-        project_tasks = await db.tasks.count_documents({"project_id": project_id, "discipline": current_user.discipline})
+        project_tasks = await db.tasks.count_documents(
+            {"project_id": project_id, "discipline": current_user.discipline}
+        )
         if project_tasks > 0:
             raise HTTPException(
                 status_code=400,
@@ -769,12 +837,18 @@ async def delete_project(project_id: str, force: bool = False, current_user: Use
     result = await db.projects.delete_one({"id": project_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")
-    message = "Project and all associated tasks deleted successfully" if force else "Project deleted successfully"
+    message = (
+        "Project and all associated tasks deleted successfully"
+        if force
+        else "Project deleted successfully"
+    )
     return {"message": message}
 
 
 @api_router.delete("/projects/{project_id}/force")
-async def force_delete_project(project_id: str, current_user: User = Depends(get_current_user)):
+async def force_delete_project(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
     return await delete_project(project_id, force=True, current_user=current_user)
 
 
@@ -783,23 +857,35 @@ async def force_delete_project(project_id: str, current_user: User = Depends(get
 async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     # Count projects
     total_projects = await db.projects.count_documents({})
-    active_projects = await db.projects.count_documents({"status": ProjectStatus.ACTIVE})
+    active_projects = await db.projects.count_documents(
+        {"status": ProjectStatus.ACTIVE}
+    )
 
     # Count tasks
     base_task_query = {"discipline": current_user.discipline}
 
     total_tasks = await db.tasks.count_documents(base_task_query)
-    completed_tasks = await db.tasks.count_documents({**base_task_query, "status": TaskStatus.DONE})
-    in_progress_tasks = await db.tasks.count_documents({**base_task_query, "status": TaskStatus.IN_PROGRESS})
+    completed_tasks = await db.tasks.count_documents(
+        {**base_task_query, "status": TaskStatus.DONE}
+    )
+    in_progress_tasks = await db.tasks.count_documents(
+        {**base_task_query, "status": TaskStatus.IN_PROGRESS}
+    )
 
     # Count overdue tasks (simplified - tasks with due_date in past and not done)
     current_time = datetime.utcnow()
     overdue_tasks = await db.tasks.count_documents(
-        {**base_task_query, "due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
+        {
+            **base_task_query,
+            "due_date": {"$lt": current_time},
+            "status": {"$ne": TaskStatus.DONE},
+        }
     )
 
     # My tasks (placeholder - would normally use authenticated user)
-    my_tasks = await db.tasks.count_documents({**base_task_query, "assigned_to": "default_user"})
+    my_tasks = await db.tasks.count_documents(
+        {**base_task_query, "assigned_to": "default_user"}
+    )
 
     return DashboardStats(
         total_projects=total_projects,
@@ -821,7 +907,9 @@ async def get_discipline_dashboard(current_user: User = Depends(get_current_user
     user_ids = [u["id"] for u in users]
 
     # Fetch tasks assigned to those users
-    tasks = await db.tasks.find({"assigned_to": {"$in": user_ids}, "discipline": discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"assigned_to": {"$in": user_ids}, "discipline": discipline}
+    ).to_list(1000)
 
     # Count tasks by status
     status_counts = {s.value: 0 for s in TaskStatus}
@@ -831,13 +919,21 @@ async def get_discipline_dashboard(current_user: User = Depends(get_current_user
 
     # Milestone completion
     milestone_tasks = [t for t in tasks if t.get("is_milestone")]
-    completed_milestones = [t for t in milestone_tasks if t.get("status") == TaskStatus.DONE]
-    milestone_percent = (len(completed_milestones) / len(milestone_tasks) * 100) if milestone_tasks else 0
+    completed_milestones = [
+        t for t in milestone_tasks if t.get("status") == TaskStatus.DONE
+    ]
+    milestone_percent = (
+        (len(completed_milestones) / len(milestone_tasks) * 100)
+        if milestone_tasks
+        else 0
+    )
 
     # Resource utilization
     available_hours = sum((u.get("availability", 1.0) * 40) for u in users)
     allocated_hours = sum((t.get("estimated_hours", 8) for t in tasks))
-    utilization = (allocated_hours / available_hours * 100) if available_hours > 0 else 0
+    utilization = (
+        (allocated_hours / available_hours * 100) if available_hours > 0 else 0
+    )
 
     # Active projects and progress
     project_map = {}
@@ -846,7 +942,12 @@ async def get_discipline_dashboard(current_user: User = Depends(get_current_user
         if not pid:
             continue
         if pid not in project_map:
-            project_map[pid] = {"total": 0, "completed": 0, "milestones": 0, "milestones_done": 0}
+            project_map[pid] = {
+                "total": 0,
+                "completed": 0,
+                "milestones": 0,
+                "milestones_done": 0,
+            }
         project_map[pid]["total"] += 1
         if task.get("status") == TaskStatus.DONE:
             project_map[pid]["completed"] += 1
@@ -860,27 +961,37 @@ async def get_discipline_dashboard(current_user: User = Depends(get_current_user
         proj = await db.projects.find_one({"id": pid})
         if not proj:
             continue
-        progress = counts["completed"] / counts["total"] * 100 if counts["total"] > 0 else 0
-        mile_percent = counts["milestones_done"] / counts["milestones"] * 100 if counts["milestones"] > 0 else 0
-        projects.append(ProjectProgress(
-            project_id=pid,
-            project_name=proj.get("name"),
-            progress_percent=progress,
-            milestone_completion_percent=mile_percent
-        ))
+        progress = (
+            counts["completed"] / counts["total"] * 100 if counts["total"] > 0 else 0
+        )
+        mile_percent = (
+            counts["milestones_done"] / counts["milestones"] * 100
+            if counts["milestones"] > 0
+            else 0
+        )
+        projects.append(
+            ProjectProgress(
+                project_id=pid,
+                project_name=proj.get("name"),
+                progress_percent=progress,
+                milestone_completion_percent=mile_percent,
+            )
+        )
 
     return DisciplineDashboard(
         discipline=discipline,
         tasks_by_status=status_counts,
         milestone_completion_percent=milestone_percent,
         resource_utilization_percent=utilization,
-        projects=projects
+        projects=projects,
     )
 
 
 # Project-specific dashboard endpoint
 @api_router.get("/projects/{project_id}/dashboard", response_model=DashboardStats)
-async def get_project_dashboard_stats(project_id: str, current_user: User = Depends(get_current_user)):
+async def get_project_dashboard_stats(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -888,13 +999,21 @@ async def get_project_dashboard_stats(project_id: str, current_user: User = Depe
     # Count tasks for this project only
     base_query = {"project_id": project_id, "discipline": current_user.discipline}
     total_tasks = await db.tasks.count_documents(base_query)
-    completed_tasks = await db.tasks.count_documents({**base_query, "status": TaskStatus.DONE})
-    in_progress_tasks = await db.tasks.count_documents({**base_query, "status": TaskStatus.IN_PROGRESS})
+    completed_tasks = await db.tasks.count_documents(
+        {**base_query, "status": TaskStatus.DONE}
+    )
+    in_progress_tasks = await db.tasks.count_documents(
+        {**base_query, "status": TaskStatus.IN_PROGRESS}
+    )
 
     # Count overdue tasks for this project
     current_time = datetime.utcnow()
     overdue_tasks = await db.tasks.count_documents(
-        {**base_query, "due_date": {"$lt": current_time}, "status": {"$ne": TaskStatus.DONE}}
+        {
+            **base_query,
+            "due_date": {"$lt": current_time},
+            "status": {"$ne": TaskStatus.DONE},
+        }
     )
 
     # Count milestones
@@ -913,12 +1032,16 @@ async def get_project_dashboard_stats(project_id: str, current_user: User = Depe
 
 # Kanban board data for projects
 @api_router.get("/projects/{project_id}/kanban")
-async def get_project_kanban(project_id: str, current_user: User = Depends(get_current_user)):
+async def get_project_kanban(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"project_id": project_id, "discipline": current_user.discipline}
+    ).to_list(1000)
 
     kanban_board = {"todo": [], "in_progress": [], "review": [], "done": []}
 
@@ -930,6 +1053,7 @@ async def get_project_kanban(project_id: str, current_user: User = Depends(get_c
         "project": Project(**project).dict(),
         "board": kanban_board,
     }
+
 
 # Discipline-wide kanban board
 @api_router.get("/disciplines/{discipline}/kanban")
@@ -945,11 +1069,17 @@ async def get_discipline_kanban(discipline: str):
     return {"discipline": discipline, "board": board}
 
 
-@api_router.get("/disciplines/{discipline}/projects", response_model=List[DisciplineProjectSummary])
+@api_router.get(
+    "/disciplines/{discipline}/projects", response_model=List[DisciplineProjectSummary]
+)
 async def get_discipline_projects(discipline: str):
     """Return projects with tasks or documents for the given discipline."""
-    task_ids = await db.tasks.distinct("project_id", {"discipline": discipline, "project_id": {"$ne": None}})
-    doc_ids = await db.documents.distinct("project_id", {"discipline": discipline, "project_id": {"$ne": None}})
+    task_ids = await db.tasks.distinct(
+        "project_id", {"discipline": discipline, "project_id": {"$ne": None}}
+    )
+    doc_ids = await db.documents.distinct(
+        "project_id", {"discipline": discipline, "project_id": {"$ne": None}}
+    )
     project_ids = list(set(task_ids) | set(doc_ids))
 
     projects: List[DisciplineProjectSummary] = []
@@ -958,8 +1088,12 @@ async def get_discipline_projects(discipline: str):
         if not project:
             continue
 
-        task_count = await db.tasks.count_documents({"project_id": pid, "discipline": discipline})
-        doc_count = await db.documents.count_documents({"project_id": pid, "discipline": discipline})
+        task_count = await db.tasks.count_documents(
+            {"project_id": pid, "discipline": discipline}
+        )
+        doc_count = await db.documents.count_documents(
+            {"project_id": pid, "discipline": discipline}
+        )
 
         projects.append(
             DisciplineProjectSummary(
@@ -974,12 +1108,16 @@ async def get_discipline_projects(discipline: str):
 
 # Gantt Chart endpoints
 @api_router.get("/projects/{project_id}/gantt", response_model=GanttData)
-async def get_project_gantt(project_id: str, current_user: User = Depends(get_current_user)):
+async def get_project_gantt(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"project_id": project_id, "discipline": current_user.discipline}
+    ).to_list(1000)
 
     gantt_tasks = []
     project_start = datetime.utcnow()
@@ -1013,7 +1151,10 @@ async def get_project_gantt(project_id: str, current_user: User = Depends(get_cu
     critical_path = calculate_critical_path(gantt_tasks)
 
     return GanttData(
-        tasks=gantt_tasks, project_start=project_start, project_end=project_end, critical_path=critical_path
+        tasks=gantt_tasks,
+        project_start=project_start,
+        project_end=project_end,
+        critical_path=critical_path,
     )
 
 
@@ -1025,12 +1166,17 @@ def calculate_critical_path(tasks: List[GanttTask]) -> List[str]:
 
 
 @api_router.put("/tasks/{task_id}/progress")
-async def update_task_progress(task_id: str, progress: dict, current_user: User = Depends(get_current_user)):
+async def update_task_progress(
+    task_id: str, progress: dict, current_user: User = Depends(get_current_user)
+):
     task = await db.tasks.find_one({"id": task_id})
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    update_data = {"progress_percent": progress.get("progress_percent", 0), "updated_at": datetime.utcnow()}
+    update_data = {
+        "progress_percent": progress.get("progress_percent", 0),
+        "updated_at": datetime.utcnow(),
+    }
 
     # Auto-update status based on progress
     if progress.get("progress_percent", 0) == 100:
@@ -1046,12 +1192,16 @@ async def update_task_progress(task_id: str, progress: dict, current_user: User 
 
 # Resource Management endpoints
 @api_router.get("/projects/{project_id}/resources", response_model=ProjectResource)
-async def get_project_resources(project_id: str, current_user: User = Depends(get_current_user)):
+async def get_project_resources(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
     project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"project_id": project_id, "discipline": current_user.discipline}
+    ).to_list(1000)
     users = await db.users.find().to_list(1000)
 
     # Calculate resource allocation
@@ -1079,7 +1229,12 @@ async def get_project_resources(project_id: str, current_user: User = Depends(ge
                 task_hours = task_obj.estimated_hours or 8  # Default 8 hours
                 resource_map[user_id]["allocated_hours"] += task_hours
                 resource_map[user_id]["tasks"].append(
-                    {"id": task_obj.id, "title": task_obj.title, "hours": task_hours, "status": task_obj.status}
+                    {
+                        "id": task_obj.id,
+                        "title": task_obj.title,
+                        "hours": task_hours,
+                        "status": task_obj.status,
+                    }
                 )
                 total_hours_allocated += task_hours
 
@@ -1088,7 +1243,9 @@ async def get_project_resources(project_id: str, current_user: User = Depends(ge
     # Convert to ResourceAllocation objects
     resources = []
     for resource_data in resource_map.values():
-        utilization = (resource_data["allocated_hours"] / resource_data["available_hours"]) * 100
+        utilization = (
+            resource_data["allocated_hours"] / resource_data["available_hours"]
+        ) * 100
         resources.append(
             ResourceAllocation(
                 user_id=resource_data["user_id"],
@@ -1114,8 +1271,12 @@ async def get_project_resources(project_id: str, current_user: User = Depends(ge
 async def get_resources_overview(current_user: User = Depends(get_current_user)):
     """Return high level utilization metrics for all resources."""
     try:
-        users = await db.users.find({"discipline": current_user.discipline}).to_list(1000)
-        tasks = await db.tasks.find({"assigned_to": {"$ne": None}, "discipline": current_user.discipline}).to_list(1000)
+        users = await db.users.find({"discipline": current_user.discipline}).to_list(
+            1000
+        )
+        tasks = await db.tasks.find(
+            {"assigned_to": {"$ne": None}, "discipline": current_user.discipline}
+        ).to_list(1000)
     except Exception as exc:  # pragma: no cover - safety net
         logger.exception("Failed fetching resources")
         raise HTTPException(status_code=500, detail="Error fetching resources") from exc
@@ -1135,7 +1296,9 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
                 try:
                     est_hours = float(est_raw)
                 except (TypeError, ValueError) as exc:
-                    detail = f"Invalid estimated_hours '{est_raw}' for task {t.get('id')}"
+                    detail = (
+                        f"Invalid estimated_hours '{est_raw}' for task {t.get('id')}"
+                    )
                     raise HTTPException(status_code=400, detail=detail) from exc
                 total_hours += est_hours
 
@@ -1147,7 +1310,9 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
                 raise HTTPException(status_code=400, detail=detail) from exc
 
             available_hours = 40 * user_availability
-            utilization = (total_hours / available_hours) * 100 if available_hours > 0 else 0
+            utilization = (
+                (total_hours / available_hours) * 100 if available_hours > 0 else 0
+            )
 
             resource_summary.append(
                 {
@@ -1159,19 +1324,24 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
                     "allocated_hours": total_hours,
                     "available_hours": available_hours,
                     "utilization_percent": min(utilization, 100),
-                    "active_tasks": len([t for t in user_tasks if t.get("status") != "done"]),
+                    "active_tasks": len(
+                        [t for t in user_tasks if t.get("status") != "done"]
+                    ),
                 }
             )
         except HTTPException:
             raise
         except Exception:
-            logger.exception("Error processing resource metrics for user %s", user.get("id"))
+            logger.exception(
+                "Error processing resource metrics for user %s", user.get("id")
+            )
             continue
 
     return {"resources": resource_summary}
 
 
 # ------------------- WBS Endpoints -------------------
+
 
 def _calculate_cpm(tasks: List[Task]):
     """Compute critical path metrics for tasks."""
@@ -1241,20 +1411,24 @@ def _calculate_cpm(tasks: List[Task]):
     return critical_path, results
 
 
-@api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
-async def generate_project_wbs(project_id: str, current_user: User = Depends(get_current_user)):
-    project = await db.projects.find_one({"id": project_id})
+async def _generate_project_wbs(
+    project_id: str, current_user: User, session: ClientSession | None = None
+):
+    project = await db.projects.find_one({"id": project_id}, session=session)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    tasks_data = await db.tasks.find({"project_id": project_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks_data = await db.tasks.find(
+        {"project_id": project_id, "discipline": current_user.discipline},
+        session=session,
+    ).to_list(1000)
     tasks = [Task(**t) for t in tasks_data]
     if not tasks:
         raise HTTPException(status_code=404, detail="No tasks found for project")
 
     critical_path, metrics = _calculate_cpm(tasks)
 
-    await db.wbs.delete_many({"project_id": project_id})
+    await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
     for t in tasks:
@@ -1270,10 +1444,17 @@ async def generate_project_wbs(project_id: str, current_user: User = Depends(get
             "is_critical": m["is_critical"],
         }
         node = WBSNode(**node_data)
-        await db.wbs.insert_one(node.dict())
+        await db.wbs.insert_one(node.dict(), session=session)
         nodes.append(node)
 
     return nodes
+
+
+@api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
+async def generate_project_wbs_endpoint(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
+    return await _generate_project_wbs(project_id, current_user)
 
 
 @api_router.get("/projects/{project_id}/wbs", response_model=List[WBSNode])
@@ -1337,7 +1518,9 @@ async def update_epic(epic_id: str, epic_update: dict):
 @api_router.delete("/epics/{epic_id}")
 async def delete_epic(epic_id: str, current_user: User = Depends(get_current_user)):
     # Check if epic has tasks
-    epic_tasks = await db.tasks.count_documents({"epic_id": epic_id, "discipline": current_user.discipline})
+    epic_tasks = await db.tasks.count_documents(
+        {"epic_id": epic_id, "discipline": current_user.discipline}
+    )
     if epic_tasks > 0:
         raise HTTPException(
             status_code=400,
@@ -1366,7 +1549,9 @@ async def create_sprint(sprint: SprintCreate):
 
 
 @api_router.get("/sprints", response_model=List[Sprint])
-async def get_sprints(project_id: Optional[str] = None, status: Optional[SprintStatus] = None):
+async def get_sprints(
+    project_id: Optional[str] = None, status: Optional[SprintStatus] = None
+):
     query = {}
     if project_id:
         query["project_id"] = project_id
@@ -1403,7 +1588,10 @@ async def update_sprint(sprint_id: str, sprint_update: dict):
 @api_router.delete("/sprints/{sprint_id}")
 async def delete_sprint(sprint_id: str, current_user: User = Depends(get_current_user)):
     # Remove sprint assignment from all tasks
-    await db.tasks.update_many({"sprint_id": sprint_id, "discipline": current_user.discipline}, {"$unset": {"sprint_id": ""}})
+    await db.tasks.update_many(
+        {"sprint_id": sprint_id, "discipline": current_user.discipline},
+        {"$unset": {"sprint_id": ""}},
+    )
 
     result = await db.sprints.delete_one({"id": sprint_id})
     if result.deleted_count == 0:
@@ -1413,12 +1601,16 @@ async def delete_sprint(sprint_id: str, current_user: User = Depends(get_current
 
 # Sprint Board (Kanban with sprint filtering)
 @api_router.get("/sprints/{sprint_id}/board")
-async def get_sprint_board(sprint_id: str, current_user: User = Depends(get_current_user)):
+async def get_sprint_board(
+    sprint_id: str, current_user: User = Depends(get_current_user)
+):
     sprint = await db.sprints.find_one({"id": sprint_id})
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
-    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"sprint_id": sprint_id, "discipline": current_user.discipline}
+    ).to_list(1000)
 
     sprint_board = {"todo": [], "in_progress": [], "review": [], "done": []}
 
@@ -1431,7 +1623,9 @@ async def get_sprint_board(sprint_id: str, current_user: User = Depends(get_curr
 
 # Sprint analytics
 @api_router.get("/sprints/{sprint_id}/analytics")
-async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_current_user)):
+async def get_sprint_analytics(
+    sprint_id: str, current_user: User = Depends(get_current_user)
+):
     """Provide analytics and burndown information for a sprint."""
     sprint = await db.sprints.find_one({"id": sprint_id})
     if not sprint:
@@ -1444,17 +1638,33 @@ async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_
         raise HTTPException(status_code=400, detail="Sprint dates are missing")
 
     try:
-        start_date = start_date_raw if isinstance(start_date_raw, datetime) else datetime.fromisoformat(str(start_date_raw))
-        end_date = end_date_raw if isinstance(end_date_raw, datetime) else datetime.fromisoformat(str(end_date_raw))
+        start_date = (
+            start_date_raw
+            if isinstance(start_date_raw, datetime)
+            else datetime.fromisoformat(str(start_date_raw))
+        )
+        end_date = (
+            end_date_raw
+            if isinstance(end_date_raw, datetime)
+            else datetime.fromisoformat(str(end_date_raw))
+        )
     except Exception as exc:
         logger.exception("Invalid sprint dates")
-        raise HTTPException(status_code=400, detail="Invalid sprint date format") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid sprint date format"
+        ) from exc
 
-    tasks = await db.tasks.find({"sprint_id": sprint_id, "discipline": current_user.discipline}).to_list(1000)
+    tasks = await db.tasks.find(
+        {"sprint_id": sprint_id, "discipline": current_user.discipline}
+    ).to_list(1000)
 
-    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
+    total_story_points = sum(
+        task.get("story_points", 0) for task in tasks if task.get("story_points")
+    )
     completed_story_points = sum(
-        task.get("story_points", 0) for task in tasks if task.get("story_points") and task.get("status") == "done"
+        task.get("story_points", 0)
+        for task in tasks
+        if task.get("story_points") and task.get("status") == "done"
     )
 
     total_tasks = len(tasks)
@@ -1471,11 +1681,17 @@ async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_
         "total_story_points": total_story_points,
         "completed_story_points": completed_story_points,
         "remaining_story_points": total_story_points - completed_story_points,
-        "completion_percentage": (completed_story_points / total_story_points * 100) if total_story_points > 0 else 0,
+        "completion_percentage": (
+            (completed_story_points / total_story_points * 100)
+            if total_story_points > 0
+            else 0
+        ),
         "total_tasks": total_tasks,
         "completed_tasks": completed_tasks,
         "remaining_tasks": total_tasks - completed_tasks,
-        "task_completion_percentage": (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0,
+        "task_completion_percentage": (
+            (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        ),
         "total_days": total_days,
         "elapsed_days": elapsed_days,
         "remaining_days": remaining_days,
@@ -1486,7 +1702,9 @@ async def get_sprint_analytics(sprint_id: str, current_user: User = Depends(get_
 def calculate_burndown_data(tasks, start_date, end_date):
     """Calculate burndown chart data"""
     # Simplified burndown calculation
-    total_story_points = sum(task.get("story_points", 0) for task in tasks if task.get("story_points"))
+    total_story_points = sum(
+        task.get("story_points", 0) for task in tasks if task.get("story_points")
+    )
 
     # Generate ideal burndown line
     total_days = (end_date - start_date).days
@@ -1502,7 +1720,9 @@ def calculate_burndown_data(tasks, start_date, end_date):
 
         # Calculate actual remaining (simplified - in real app, would track daily completion)
         completed_points = sum(
-            task.get("story_points", 0) for task in tasks if task.get("story_points") and task.get("status") == "done"
+            task.get("story_points", 0)
+            for task in tasks
+            if task.get("story_points") and task.get("status") == "done"
         )
         actual_remaining = total_story_points - completed_points
 
@@ -1510,7 +1730,9 @@ def calculate_burndown_data(tasks, start_date, end_date):
             {
                 "date": current_date.isoformat(),
                 "ideal_remaining": ideal_remaining,
-                "actual_remaining": actual_remaining if current_date <= datetime.utcnow() else None,
+                "actual_remaining": (
+                    actual_remaining if current_date <= datetime.utcnow() else None
+                ),
             }
         )
 
@@ -1535,7 +1757,9 @@ async def upload_document(
     if discipline is None:
         discipline = current_user.discipline
     elif discipline != current_user.discipline:
-        raise HTTPException(status_code=403, detail="Cannot upload to another discipline")
+        raise HTTPException(
+            status_code=403, detail="Cannot upload to another discipline"
+        )
 
     try:
         # Create documents directory if it doesn't exist
@@ -1555,7 +1779,9 @@ async def upload_document(
         file_size = file_path.stat().st_size
 
         # Parse tags
-        tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else []
+        tag_list = (
+            [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else []
+        )
 
         # Create document record
         document_data = {
@@ -1574,7 +1800,6 @@ async def upload_document(
             "created_by": current_user.id,
             "tags": tag_list,
             "is_confidential": is_confidential,
-
         }
 
         document_obj = Document(**document_data)
@@ -1586,8 +1811,9 @@ async def upload_document(
         # Clean up file if document creation failed
         if "file_path" in locals() and file_path.exists():
             file_path.unlink()
-        raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
-
+        raise HTTPException(
+            status_code=500, detail=f"Failed to upload document: {str(e)}"
+        )
 
 
 @api_router.post("/documents/parse")
@@ -1649,9 +1875,11 @@ async def parse_document_endpoint(
         data["created_tasks"] = [t.dict() for t in created_tasks]
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to parse document: {str(e)}"
+        )
     finally:
-        if 'temp_path' in locals() and temp_path.exists():
+        if "temp_path" in locals() and temp_path.exists():
             temp_path.unlink()
 
 
@@ -1687,12 +1915,16 @@ async def get_documents(
 
 @api_router.get("/documents/dcc", response_model=List[Document])
 async def get_dcc_documents(current_user: User = Depends(get_current_user)):
-    docs = await db.documents.find({"review_step": DocumentReviewStep.DCC}).to_list(1000)
+    docs = await db.documents.find({"review_step": DocumentReviewStep.DCC}).to_list(
+        1000
+    )
     return [Document(**d) for d in docs]
 
 
 @api_router.get("/documents/{document_id}", response_model=Document)
-async def get_document(document_id: str, current_user: User = Depends(get_current_user)):
+async def get_document(
+    document_id: str, current_user: User = Depends(get_current_user)
+):
     document = await db.documents.find_one({"id": document_id})
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1700,7 +1932,9 @@ async def get_document(document_id: str, current_user: User = Depends(get_curren
 
 
 @api_router.get("/documents/{document_id}/download")
-async def download_document(document_id: str, current_user: User = Depends(get_current_user)):
+async def download_document(
+    document_id: str, current_user: User = Depends(get_current_user)
+):
     document = await db.documents.find_one({"id": document_id})
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1709,12 +1943,16 @@ async def download_document(document_id: str, current_user: User = Depends(get_c
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
-    return FileResponse(path=file_path, filename=document["file_name"], media_type=document["file_type"])
+    return FileResponse(
+        path=file_path, filename=document["file_name"], media_type=document["file_type"]
+    )
 
 
 @api_router.put("/documents/{document_id}", response_model=Document)
 async def update_document(
-    document_id: str, document_update: DocumentUpdate, current_user: User = Depends(get_current_user)
+    document_id: str,
+    document_update: DocumentUpdate,
+    current_user: User = Depends(get_current_user),
 ):
     document = await db.documents.find_one({"id": document_id})
     if not document or document.get("discipline") != current_user.discipline:
@@ -1727,14 +1965,22 @@ async def update_document(
 
     updated_document = await db.documents.find_one({"id": document_id})
     if new_status or review_step:
-        status_val = update_data.get("status", document["status"]) if new_status else document["status"]
+        status_val = (
+            update_data.get("status", document["status"])
+            if new_status
+            else document["status"]
+        )
         msg = f"Document '{document['title']}' status updated to {status_val}"
-        await send_notification(Document(**updated_document), msg, user_id=document.get("created_by"))
+        await send_notification(
+            Document(**updated_document), msg, user_id=document.get("created_by")
+        )
     return Document(**updated_document)
 
 
 @api_router.post("/documents/{document_id}/dcc_finalize")
-async def finalize_document(document_id: str, current_user: User = Depends(get_current_user)):
+async def finalize_document(
+    document_id: str, current_user: User = Depends(get_current_user)
+):
     doc = await db.documents.find_one({"id": document_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1742,7 +1988,11 @@ async def finalize_document(document_id: str, current_user: User = Depends(get_c
     update_data = {"dcc_completed_at": datetime.utcnow()}
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
     updated = await db.documents.find_one({"id": document_id})
-    await send_notification(Document(**updated), f"Document '{updated['title']}' finalized by DCC", user_id=doc.get("created_by"))
+    await send_notification(
+        Document(**updated),
+        f"Document '{updated['title']}' finalized by DCC",
+        user_id=doc.get("created_by"),
+    )
     return Document(**updated)
 
 
@@ -1760,9 +2010,13 @@ async def advance_document_review(document_id: str, revision: bool = False):
     if revision:
         update_data["review_step"] = DocumentReviewStep.DIC
         update_data["status"] = DocumentStatus.DRAFT
-        notification = f"Document '{doc.title}' requires revisions and was returned to DIC"
+        notification = (
+            f"Document '{doc.title}' requires revisions and was returned to DIC"
+        )
         if doc.task_id:
-            await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.IN_PROGRESS}})
+            await db.tasks.update_one(
+                {"id": doc.task_id}, {"$set": {"status": TaskStatus.IN_PROGRESS}}
+            )
     else:
         if doc.review_step == DocumentReviewStep.DIC:
             update_data["review_step"] = DocumentReviewStep.IDC
@@ -1770,14 +2024,20 @@ async def advance_document_review(document_id: str, revision: bool = False):
             update_data["status"] = DocumentStatus.UNDER_REVIEW
             notification = f"Document '{doc.title}' sent for client approval"
             if doc.task_id:
-                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.REVIEW}})
+                await db.tasks.update_one(
+                    {"id": doc.task_id}, {"$set": {"status": TaskStatus.REVIEW}}
+                )
         elif doc.review_step == DocumentReviewStep.IDC:
             update_data["review_step"] = DocumentReviewStep.DCC
             update_data["idc_completed_at"] = datetime.utcnow()
             update_data["status"] = DocumentStatus.APPROVED
-            notification = f"Document '{doc.title}' approved and sent to document control"
+            notification = (
+                f"Document '{doc.title}' approved and sent to document control"
+            )
             if doc.task_id:
-                await db.tasks.update_one({"id": doc.task_id}, {"$set": {"status": TaskStatus.DONE}})
+                await db.tasks.update_one(
+                    {"id": doc.task_id}, {"$set": {"status": TaskStatus.DONE}}
+                )
         else:
             return {"message": "Document already in final stage"}
 
@@ -1785,12 +2045,18 @@ async def advance_document_review(document_id: str, revision: bool = False):
 
     updated_document = await db.documents.find_one({"id": document_id})
     if notification:
-        await send_notification(Document(**updated_document), notification, user_id=doc.created_by)
+        await send_notification(
+            Document(**updated_document), notification, user_id=doc.created_by
+        )
     return {"document": Document(**updated_document), "notification": notification}
 
 
 @api_router.put("/documents/{document_id}/status")
-async def update_document_status(document_id: str, status_update: dict, current_user: User = Depends(get_current_user)):
+async def update_document_status(
+    document_id: str,
+    status_update: dict,
+    current_user: User = Depends(get_current_user),
+):
     document = await db.documents.find_one({"id": document_id})
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1815,14 +2081,22 @@ async def update_document_status(document_id: str, status_update: dict, current_
 
     updated_document = await db.documents.find_one({"id": document_id})
     if new_status or review_step:
-        status_val = update_data.get("status", document["status"]) if new_status else document["status"]
+        status_val = (
+            update_data.get("status", document["status"])
+            if new_status
+            else document["status"]
+        )
         msg = f"Document '{document['title']}' status updated to {status_val}"
-        await send_notification(Document(**updated_document), msg, user_id=document.get("created_by"))
+        await send_notification(
+            Document(**updated_document), msg, user_id=document.get("created_by")
+        )
     return Document(**updated_document)
 
 
 @api_router.delete("/documents/{document_id}")
-async def delete_document(document_id: str, current_user: User = Depends(get_current_user)):
+async def delete_document(
+    document_id: str, current_user: User = Depends(get_current_user)
+):
     document = await db.documents.find_one({"id": document_id})
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1848,7 +2122,9 @@ async def get_notifications(current_user: User = Depends(get_current_user)):
 
 # Document analytics
 @api_router.get("/documents/analytics/summary")
-async def get_document_analytics(project_id: Optional[str] = None, current_user: User = Depends(get_current_user)):
+async def get_document_analytics(
+    project_id: Optional[str] = None, current_user: User = Depends(get_current_user)
+):
     query = {"discipline": current_user.discipline}
     if project_id:
         query["project_id"] = project_id
@@ -1856,13 +2132,22 @@ async def get_document_analytics(project_id: Optional[str] = None, current_user:
     # Get document counts by category
     pipeline = [
         {"$match": query},
-        {"$group": {"_id": "$category", "count": {"$sum": 1}, "total_size": {"$sum": "$file_size"}}},
+        {
+            "$group": {
+                "_id": "$category",
+                "count": {"$sum": 1},
+                "total_size": {"$sum": "$file_size"},
+            }
+        },
     ]
 
     category_stats = await db.documents.aggregate(pipeline).to_list(100)
 
     # Get document counts by status
-    status_pipeline = [{"$match": query}, {"$group": {"_id": "$status", "count": {"$sum": 1}}}]
+    status_pipeline = [
+        {"$match": query},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    ]
 
     status_stats = await db.documents.aggregate(status_pipeline).to_list(100)
 
@@ -1870,7 +2155,10 @@ async def get_document_analytics(project_id: Optional[str] = None, current_user:
     total_documents = await db.documents.count_documents(query)
 
     # Calculate total storage size
-    size_pipeline = [{"$match": query}, {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}}]
+    size_pipeline = [
+        {"$match": query},
+        {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}},
+    ]
 
     size_result = await db.documents.aggregate(size_pipeline).to_list(1)
     total_size = size_result[0]["total_size"] if size_result else 0
@@ -1896,7 +2184,9 @@ app.add_middleware(
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -1907,20 +2197,15 @@ async def shutdown_db_client():
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Read server configuration from environment variables with sensible defaults
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 8000))
     reload = os.environ.get("RELOAD", "false").lower() == "true"
     workers = int(os.environ.get("WORKERS", 1))
     log_level = os.environ.get("LOG_LEVEL", "info").lower()
-    
+
     # Start the server with configuration from environment
     uvicorn.run(
-        app, 
-        host=host, 
-        port=port, 
-        reload=reload,
-        workers=workers,
-        log_level=log_level
+        app, host=host, port=port, reload=reload, workers=workers, log_level=log_level
     )
