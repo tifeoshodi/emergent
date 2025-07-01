@@ -2,17 +2,21 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-axios.defaults.headers.common["X-User-ID"] = "default_user";
-import Components from "./Components";
+// Set user ID after authentication
+// axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;import Components from "./Components";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
+
+// Maximum number of retries for API calls
+const MAX_RETRIES = 3;
 
 // Home Page Component
 const HomePage = () => {
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'connected', 'error'
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchHomeData();
@@ -32,6 +36,8 @@ const HomePage = () => {
         
         setStats(statsRes.data);
         setConnectionStatus('connected');
+        // Reset retry count on successful connection
+        setRetryCount(0);
         
         // Combine recent activity from tasks and projects
         const activity = [
@@ -55,15 +61,49 @@ const HomePage = () => {
       console.error('Error fetching home data:', error);
       setConnectionStatus('error');
       
-      // Try to fetch data individually if the bulk fetch failed
-      try {
-        const statsRes = await axios.get(`${API}/dashboard/stats`);
-        setStats(statsRes.data);
-        setConnectionStatus('connected');
-      } catch (statsError) {
-        console.error('Stats API still failing:', statsError);
-        setConnectionStatus('error');
-        // Only show fallback demo data if individual API calls also fail
+      // Check if we've reached the maximum number of retries
+      if (retryCount < MAX_RETRIES) {
+        // Try to fetch data individually if the bulk fetch failed
+        try {
+          const statsRes = await axios.get(`${API}/dashboard/stats`);
+          setStats(statsRes.data);
+          setConnectionStatus('connected');
+          // Reset retry count on successful connection
+          setRetryCount(0);
+        } catch (statsError) {
+          console.error('Stats API still failing:', statsError);
+          setConnectionStatus('error');
+          // Increment retry count
+          setRetryCount(prevCount => prevCount + 1);
+          // Only show fallback demo data if individual API calls also fail
+          setStats({
+            total_projects: 0,
+            active_projects: 0,
+            total_tasks: 0,
+            completed_tasks: 0,
+            in_progress_tasks: 0,
+            overdue_tasks: 0,
+            my_tasks: 0
+          });
+        }
+        
+        // Try to get real project data for recent activity
+        try {
+          const projectsRes = await axios.get(`${API}/projects`);
+          const activity = projectsRes.data.slice(0, 5).map(project => ({
+            type: 'project', 
+            title: project.name,
+            status: project.status,
+            created_at: project.created_at
+          }));
+          setRecentActivity(activity);
+        } catch (activityError) {
+          console.error('Projects API failing:', activityError);
+          setRecentActivity([]);
+        }
+      } else {
+        console.warn(`Maximum retry attempts (${MAX_RETRIES}) reached. Giving up.`);
+        // Set fallback data after max retries
         setStats({
           total_projects: 0,
           active_projects: 0,
@@ -73,20 +113,6 @@ const HomePage = () => {
           overdue_tasks: 0,
           my_tasks: 0
         });
-      }
-      
-      // Try to get real project data for recent activity
-      try {
-        const projectsRes = await axios.get(`${API}/projects`);
-        const activity = projectsRes.data.slice(0, 5).map(project => ({
-          type: 'project', 
-          title: project.name,
-          status: project.status,
-          created_at: project.created_at
-        }));
-        setRecentActivity(activity);
-      } catch (activityError) {
-        console.error('Projects API failing:', activityError);
         setRecentActivity([]);
       }
     }

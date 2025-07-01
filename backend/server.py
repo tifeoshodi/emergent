@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, UploadFile, Form, Header
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
@@ -19,10 +20,14 @@ load_dotenv(ROOT_DIR / ".env")
 
 # MongoDB connection
 mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get("DB_NAME", "pmfusion_db")]
-
-# Create the main app without a prefix
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=5_000,   # 5 s DNS / cluster resolution
+    connectTimeoutMS=5_000,           # 5 s socket connect
+)
+# fail fast during startup (optional but recommended)
+# await client.admin.command("ping")
+db = client[os.environ.get("DB_NAME", "pmfusion_db")]# Create the main app without a prefix
 app = FastAPI()
 
 # Create a router with the /api prefix
@@ -35,7 +40,7 @@ async def api_health():
     return {"status": "ok", "message": "EPC Project Management API is running"}
 
 
-async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> "User":
+async def get_current_user(x_user_id: str = Header(..., alias="X-User-ID")) -> User:
     user = await db.users.find_one({"id": x_user_id})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid user")
@@ -51,7 +56,7 @@ async def send_notification(document: "Document", message: str, user_id: Optiona
 
 
 async def get_discipline_scope(
-    current_user: "User" = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Return a query filter enforcing the current user's discipline."""
     if not current_user.discipline:
@@ -1902,4 +1907,20 @@ async def shutdown_db_client():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # Read server configuration from environment variables with sensible defaults
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", 8000))
+    reload = os.environ.get("RELOAD", "false").lower() == "true"
+    workers = int(os.environ.get("WORKERS", 1))
+    log_level = os.environ.get("LOG_LEVEL", "info").lower()
+    
+    # Start the server with configuration from environment
+    uvicorn.run(
+        app, 
+        host=host, 
+        port=port, 
+        reload=reload,
+        workers=workers,
+        log_level=log_level
+    )
