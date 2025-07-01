@@ -476,6 +476,9 @@ class WBSNode(BaseModel):
     early_start: float
     early_finish: float
     is_critical: bool = False
+    parent_id: Optional[str] = None
+    code: Optional[str] = None
+    children: Optional[List["WBSNode"]] = None
 
 
 # Resource allocation models
@@ -1431,7 +1434,7 @@ async def _generate_project_wbs(
     await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
-    for t in tasks:
+    for idx, t in enumerate(tasks, start=1):
         m = metrics[t.id]
         node_data = {
             "project_id": project_id,
@@ -1442,6 +1445,9 @@ async def _generate_project_wbs(
             "early_start": m["early_start"],
             "early_finish": m["early_finish"],
             "is_critical": m["is_critical"],
+            "parent_id": None,
+            "code": str(idx),
+            "children": None,
         }
         node = WBSNode(**node_data)
         await db.wbs.insert_one(node.dict(), session=session)
@@ -1463,8 +1469,22 @@ async def get_project_wbs(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
-    return [WBSNode(**n) for n in nodes]
+    nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    node_map: Dict[str, WBSNode] = {}
+    roots: List[WBSNode] = []
+    for nd in nodes_data:
+        node = WBSNode(**nd)
+        node.children = []
+        node_map[node.id] = node
+    for node in node_map.values():
+        if node.parent_id and node.parent_id in node_map:
+            parent = node_map[node.parent_id]
+            if parent.children is None:
+                parent.children = []
+            parent.children.append(node)
+        else:
+            roots.append(node)
+    return roots
 
 
 # Epic endpoints
@@ -1868,6 +1888,9 @@ async def parse_document_endpoint(
                 early_start=0.0,
                 early_finish=task_obj.duration_days or 1.0,
                 is_critical=False,
+                parent_id=None,
+                code=str(len(created_tasks) + 1),
+                children=None,
             )
             await db.wbs.insert_one(node.dict())
             created_tasks.append(task_obj)
