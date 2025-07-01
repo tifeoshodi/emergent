@@ -1,7 +1,5 @@
 FROM python:3.11-slim
 
-ARG GITHUB_TOKEN
-ARG PLUGIN_LIB_TAG
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -47,8 +45,6 @@ ENV VIRTUAL_ENV="/root/.venv"
 
 WORKDIR /app
 
-RUN pip install "git+https://${GITHUB_TOKEN}@github.com/emergentbase/emergent.git@${PLUGIN_LIB_TAG}#subdirectory=plugin_library"
-
 RUN python -m pip install typer uvicorn fastapi
 
 COPY .devcontainer/entrypoint.sh /entrypoint.sh
@@ -67,7 +63,7 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh && \
 
 WORKDIR /app
 RUN git init -b main
-RUN git config --global user.name 'E1' && git config --global user.email 'e1@emergent.sh'
+RUN git config --global user.name 'Developer' && git config --global user.email 'developer@pmfusion.dev'
 # RUN git add . && git commit --allow-empty -m 'Initial commit'
 # RUN git rev-parse HEAD  > /root/.git_init_commit_hash
 

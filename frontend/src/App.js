@@ -2,16 +2,21 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-axios.defaults.headers.common["X-User-ID"] = "default_user";
-import Components from "./Components";
+// Set user ID after authentication
+// axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;import Components from "./Components";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
+
+// Maximum number of retries for API calls
+const MAX_RETRIES = 3;
 
 // Home Page Component
 const HomePage = () => {
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'connected', 'error'
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchHomeData();
@@ -19,33 +24,97 @@ const HomePage = () => {
 
   const fetchHomeData = async () => {
     try {
-      const [statsRes, tasksRes, projectsRes] = await Promise.all([
-        axios.get(`${API}/dashboard/stats`),
-        axios.get(`${API}/tasks`),
-        axios.get(`${API}/projects`)
-      ]);
-      
-      setStats(statsRes.data);
-      
-      // Combine recent activity from tasks and projects
-      const activity = [
-        ...tasksRes.data.slice(0, 3).map(task => ({
-          type: 'task',
-          title: task.title,
-          status: task.status,
-          created_at: task.created_at
-        })),
-        ...projectsRes.data.slice(0, 3).map(project => ({
-          type: 'project', 
-          title: project.name,
-          status: project.status,
-          created_at: project.created_at
-        }))
-      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
-      
-      setRecentActivity(activity);
+      // First, check if the API is available
+      const healthCheck = await axios.get(`${API}/`);
+      if (healthCheck.status === 200) {
+        // API is available, now fetch the data
+        const [statsRes, tasksRes, projectsRes] = await Promise.all([
+          axios.get(`${API}/dashboard/stats`),
+          axios.get(`${API}/tasks`),
+          axios.get(`${API}/projects`)
+        ]);
+        
+        setStats(statsRes.data);
+        setConnectionStatus('connected');
+        // Reset retry count on successful connection
+        setRetryCount(0);
+        
+        // Combine recent activity from tasks and projects
+        const activity = [
+          ...tasksRes.data.slice(0, 3).map(task => ({
+            type: 'task',
+            title: task.title,
+            status: task.status,
+            created_at: task.created_at
+          })),
+          ...projectsRes.data.slice(0, 3).map(project => ({
+            type: 'project', 
+            title: project.name,
+            status: project.status,
+            created_at: project.created_at
+          }))
+        ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+        
+        setRecentActivity(activity);
+      }
     } catch (error) {
       console.error('Error fetching home data:', error);
+      setConnectionStatus('error');
+      
+      // Check if we've reached the maximum number of retries
+      if (retryCount < MAX_RETRIES) {
+        // Try to fetch data individually if the bulk fetch failed
+        try {
+          const statsRes = await axios.get(`${API}/dashboard/stats`);
+          setStats(statsRes.data);
+          setConnectionStatus('connected');
+          // Reset retry count on successful connection
+          setRetryCount(0);
+        } catch (statsError) {
+          console.error('Stats API still failing:', statsError);
+          setConnectionStatus('error');
+          // Increment retry count
+          setRetryCount(prevCount => prevCount + 1);
+          // Only show fallback demo data if individual API calls also fail
+          setStats({
+            total_projects: 0,
+            active_projects: 0,
+            total_tasks: 0,
+            completed_tasks: 0,
+            in_progress_tasks: 0,
+            overdue_tasks: 0,
+            my_tasks: 0
+          });
+        }
+        
+        // Try to get real project data for recent activity
+        try {
+          const projectsRes = await axios.get(`${API}/projects`);
+          const activity = projectsRes.data.slice(0, 5).map(project => ({
+            type: 'project', 
+            title: project.name,
+            status: project.status,
+            created_at: project.created_at
+          }));
+          setRecentActivity(activity);
+        } catch (activityError) {
+          console.error('Projects API failing:', activityError);
+          setRecentActivity([]);
+        }
+      } else {
+        console.warn(`Maximum retry attempts (${MAX_RETRIES}) reached. Giving up.`);
+        // Set fallback data after max retries
+        setStats({
+          total_projects: 0,
+          active_projects: 0,
+          total_tasks: 0,
+          completed_tasks: 0,
+          in_progress_tasks: 0,
+          overdue_tasks: 0,
+          my_tasks: 0
+        });
+        setRecentActivity([]);
+      }
     }
   };
 
@@ -96,7 +165,35 @@ const HomePage = () => {
 
       {/* Stats Overview */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Platform Overview</h2>
+        <div className="flex items-center justify-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 text-center mr-4">Platform Overview</h2>
+          <div className={`flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            connectionStatus === 'connected' 
+              ? 'bg-green-100 text-green-800' 
+              : connectionStatus === 'error'
+              ? 'bg-red-100 text-red-800'
+              : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            <div className={`w-2 h-2 rounded-full mr-2 ${
+              connectionStatus === 'connected' 
+                ? 'bg-green-400' 
+                : connectionStatus === 'error'
+                ? 'bg-red-400'
+                : 'bg-yellow-400'
+            }`}></div>
+            {connectionStatus === 'connected' && 'Live Database Data'}
+            {connectionStatus === 'error' && 'Database Connection Error'}
+            {connectionStatus === 'connecting' && 'Connecting to Database...'}
+          </div>
+          {connectionStatus === 'error' && (
+            <button 
+              onClick={fetchHomeData}
+              className="ml-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+            >
+              Retry Connection
+            </button>
+          )}
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
           <div className="stats-card stats-card-total">
