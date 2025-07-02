@@ -561,8 +561,6 @@ CPMExport.model_rebuild(_types_namespace=globals())
 CPMCalendar.__module__ = f"{__name__}_models"
 CPMExportTask.__module__ = f"{__name__}_models"
 CPMExport.__module__ = f"{__name__}_models"
-CPMExportTask.model_rebuild(_types_namespace=globals())
-CPMExport.model_rebuild(_types_namespace=globals())
 
 
 class WBSNodeCreate(BaseModel):
