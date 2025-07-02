@@ -4,6 +4,8 @@ import logging
 import os
 import shutil
 import uuid
+import sys
+import types
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -39,7 +41,10 @@ from datetime import datetime, timedelta, date
 from enum import Enum
 import shutil
 
-
+if __name__ not in sys.modules:
+    m = types.ModuleType(__name__)
+    sys.modules[__name__] = m
+    m.__dict__.update(globals())
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -506,6 +511,7 @@ class WBSNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     wbs_group: Optional[str] = None
+    code: Optional[str] = None
     children: Optional[List["WBSNode"]] = None
 
 
@@ -546,8 +552,11 @@ class CPMExport(BaseModel):
     tasks: List[CPMExportTask]
 
 
-CPMExportTask.model_rebuild()
-CPMExport.model_rebuild()
+CPMCalendar.__module__ = f"{__name__}_models"
+CPMExportTask.__module__ = f"{__name__}_models"
+CPMExport.__module__ = f"{__name__}_models"
+CPMExportTask.model_rebuild(_types_namespace=globals())
+CPMExport.model_rebuild(_types_namespace=globals())
 
 class WBSNodeCreate(BaseModel):
     title: str
@@ -1607,7 +1616,6 @@ async def _generate_project_wbs(
     await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
-
 
 
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
