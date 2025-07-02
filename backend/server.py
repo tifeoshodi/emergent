@@ -565,6 +565,7 @@ CPMExport.__module__ = f"{__name__}_models"
 CPMExportTask.model_rebuild(_types_namespace=globals())
 CPMExport.model_rebuild(_types_namespace=globals())
 
+
 class WBSNodeCreate(BaseModel):
     title: str
     wbs_code: str
@@ -1624,7 +1625,6 @@ async def _generate_project_wbs(
 
     nodes = []
 
-
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
 
     for g_idx, (group_name, group_tasks) in enumerate(sorted(grouped.items()), start=1):
@@ -1679,9 +1679,6 @@ async def _generate_project_wbs(
             node = WBSNode(**node_data)
             await db.wbs.insert_one(node.dict(), session=session)
             nodes.append(node)
-
-
-
 
     await _record_wbs_audit(
         project_id,

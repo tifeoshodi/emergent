@@ -121,7 +121,6 @@ def test_wbs_audit_logging(monkeypatch):
 
     nodes = asyncio.run(server._generate_project_wbs("p1", user))
 
-
     assert len(db.wbs.inserted) == 3
     assert len(db.wbs_audit.inserted) == 1
 
