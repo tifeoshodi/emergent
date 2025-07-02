@@ -1671,7 +1671,6 @@ async def _generate_project_wbs(
                 "wbs_code": f"{g_idx}.{t_idx}",
                 "children": None,
                 "wbs_group": group_name,
-                "created_by": current_user.id,
             }
             node = WBSNode(**node_data)
             await db.wbs.insert_one(node.dict(), session=session)
