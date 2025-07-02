@@ -25,6 +25,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from backend.external_integrations.supabase_client import supabase
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from collections import deque
