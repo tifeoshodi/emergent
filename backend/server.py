@@ -24,6 +24,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
+
 from pymongo.client_session import ClientSession
 from starlette.middleware.cors import CORSMiddleware
 
@@ -32,6 +33,13 @@ from backend.dependency_suggester import (
     MinimalTask,
     propose_dependencies,
 )
+
+from typing import List, Optional, Dict, Any
+import uuid
+from datetime import datetime, timedelta
+from enum import Enum
+import shutil
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -477,13 +485,35 @@ class GanttData(BaseModel):
 class WBSNode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     project_id: str
-    task_id: str
+    task_id: Optional[str] = None
+    parent_id: Optional[str] = None
+    wbs_code: str = ""
     title: str
     duration_days: float
     predecessors: List[str] = []
     early_start: float
     early_finish: float
     is_critical: bool = False
+
+    wbs_group: Optional[str] = None
+    parent_id: Optional[str] = None
+    code: Optional[str] = None
+    children: Optional[List["WBSNode"]] = None
+
+
+
+class WBSNodeCreate(BaseModel):
+    title: str
+    wbs_code: str
+    parent_id: Optional[str] = None
+
+
+class WBSCodeUpdate(BaseModel):
+    wbs_code: str
+
+
+class WBSMove(BaseModel):
+    new_parent_id: Optional[str] = None
 
 
 # Resource allocation models
@@ -1419,6 +1449,47 @@ def _calculate_cpm(tasks: List[Task]):
     return critical_path, results
 
 
+# Default grouping rules for building the WBS tree
+DEFAULT_WBS_RULES: Dict[str, Any] = {
+    "discipline": True,
+    "phase": True,
+    "deliverable_prefixes": {},
+}
+
+
+def build_wbs_tree(tasks: List[Task], rules: Dict[str, Any]) -> Dict[str, List[Task]]:
+    """Group tasks based on the provided rules."""
+    tree: Dict[str, List[Task]] = {}
+    prefixes = rules.get("deliverable_prefixes", {})
+    for t in tasks:
+        group: Optional[str] = None
+
+        # Match deliverable prefixes first
+        for prefix, name in prefixes.items():
+            if t.title.lower().startswith(prefix.lower()):
+                group = name
+                break
+
+        # Group by phase if available
+        if group is None and rules.get("phase"):
+            phase_val = getattr(t, "phase", None)
+            if phase_val:
+                group = str(phase_val)
+
+        # Group by discipline
+        if group is None and rules.get("discipline"):
+            disc_val = getattr(t, "discipline", None)
+            if disc_val:
+                group = str(disc_val)
+
+        if group is None:
+            group = "Uncategorized"
+
+        tree.setdefault(group, []).append(t)
+
+    return tree
+
+
 async def _generate_project_wbs(
     project_id: str, current_user: User, session: ClientSession | None = None
 ):
@@ -1439,7 +1510,29 @@ async def _generate_project_wbs(
     await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
-    for t in tasks:
+
+
+    grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
+    for group_name, group_tasks in grouped.items():
+        for t in group_tasks:
+            m = metrics[t.id]
+            node_data = {
+                "project_id": project_id,
+                "task_id": t.id,
+                "title": t.title,
+                "duration_days": m["duration"],
+                "predecessors": t.predecessor_tasks,
+                "early_start": m["early_start"],
+                "early_finish": m["early_finish"],
+                "is_critical": m["is_critical"],
+                "wbs_group": group_name,
+            }
+            node = WBSNode(**node_data)
+            await db.wbs.insert_one(node.dict(), session=session)
+            nodes.append(node)
+
+
+    for idx, t in enumerate(tasks, start=1):
         m = metrics[t.id]
         node_data = {
             "project_id": project_id,
@@ -1450,10 +1543,18 @@ async def _generate_project_wbs(
             "early_start": m["early_start"],
             "early_finish": m["early_finish"],
             "is_critical": m["is_critical"],
+            "parent_id": None,
+
+            "wbs_code": str(idx),
+
+            "code": str(idx),
+            "children": None,
+
         }
         node = WBSNode(**node_data)
         await db.wbs.insert_one(node.dict(), session=session)
         nodes.append(node)
+
 
     return nodes
 
@@ -1471,8 +1572,176 @@ async def get_project_wbs(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
-    return [WBSNode(**n) for n in nodes]
+    nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    node_map: Dict[str, WBSNode] = {}
+    roots: List[WBSNode] = []
+    for nd in nodes_data:
+        node = WBSNode(**nd)
+        node.children = []
+        node_map[node.id] = node
+    for node in node_map.values():
+        if node.parent_id and node.parent_id in node_map:
+            parent = node_map[node.parent_id]
+            if parent.children is None:
+                parent.children = []
+            parent.children.append(node)
+        else:
+            roots.append(node)
+    return roots
+
+
+@api_router.post("/projects/{project_id}/wbs/nodes", response_model=WBSNode)
+async def create_wbs_node(project_id: str, node: WBSNodeCreate):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    exists = await db.wbs.find_one(
+        {
+            "project_id": project_id,
+            "parent_id": node.parent_id,
+            "wbs_code": node.wbs_code,
+        }
+    )
+    if exists:
+        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
+    node_data = node.dict()
+    node_data.update(
+        {
+            "project_id": project_id,
+            "task_id": None,
+            "duration_days": 0.0,
+            "predecessors": [],
+            "early_start": 0.0,
+            "early_finish": 0.0,
+            "is_critical": False,
+        }
+    )
+    new_node = WBSNode(**node_data)
+    await db.wbs.insert_one(new_node.dict())
+    return new_node
+
+
+@api_router.put("/wbs/{node_id}/move", response_model=WBSNode)
+async def move_wbs_node(node_id: str, move: WBSMove):
+    node = await db.wbs.find_one({"id": node_id})
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if await db.wbs.find_one(
+        {
+            "project_id": node["project_id"],
+            "parent_id": move.new_parent_id,
+            "wbs_code": node.get("wbs_code", ""),
+            "id": {"$ne": node_id},
+        }
+    ):
+        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
+    await db.wbs.update_one({"id": node_id}, {"$set": {"parent_id": move.new_parent_id}})
+    updated = await db.wbs.find_one({"id": node_id})
+    return WBSNode(**updated)
+
+
+@api_router.put("/wbs/{node_id}/code", response_model=WBSNode)
+async def update_wbs_code(node_id: str, payload: WBSCodeUpdate):
+    node = await db.wbs.find_one({"id": node_id})
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if await db.wbs.find_one(
+        {
+            "project_id": node["project_id"],
+            "parent_id": node.get("parent_id"),
+            "wbs_code": payload.wbs_code,
+            "id": {"$ne": node_id},
+        }
+    ):
+        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
+    await db.wbs.update_one({"id": node_id}, {"$set": {"wbs_code": payload.wbs_code}})
+    updated = await db.wbs.find_one({"id": node_id})
+    return WBSNode(**updated)
+
+
+class SplitRequest(BaseModel):
+    titles: List[str]
+
+
+@api_router.post("/tasks/{task_id}/split", response_model=List[Task])
+async def split_task(task_id: str, req: SplitRequest, current_user: User = Depends(get_current_user)):
+    task = await db.tasks.find_one({"id": task_id})
+    if not task or task.get("discipline") != current_user.discipline:
+        raise HTTPException(status_code=404, detail="Task not found")
+    node = await db.wbs.find_one({"task_id": task_id})
+    await db.tasks.delete_one({"id": task_id})
+    if node:
+        await db.wbs.delete_one({"id": node["id"]})
+    new_tasks = []
+    for idx, title in enumerate(req.titles, start=1):
+        new_task_dict = task.copy()
+        new_task_dict.update({"id": str(uuid.uuid4()), "title": title})
+        new_task = Task(**new_task_dict)
+        await db.tasks.insert_one(new_task.dict())
+        if node:
+            code = f"{node.get('wbs_code', '')}.{idx}"
+            if await db.wbs.find_one({"project_id": node["project_id"], "parent_id": node.get("parent_id"), "wbs_code": code}):
+                code = f"{code}-{uuid.uuid4().hex[:4]}"
+            node_data = {
+                "project_id": node["project_id"],
+                "task_id": new_task.id,
+                "title": new_task.title,
+                "duration_days": new_task.duration_days or 1.0,
+                "predecessors": new_task.predecessor_tasks,
+                "early_start": 0.0,
+                "early_finish": new_task.duration_days or 1.0,
+                "is_critical": False,
+                "parent_id": node.get("parent_id"),
+                "wbs_code": code,
+            }
+            await db.wbs.insert_one(WBSNode(**node_data).dict())
+        new_tasks.append(new_task)
+    return new_tasks
+
+
+class MergeRequest(BaseModel):
+    task_ids: List[str]
+    title: str
+
+
+@api_router.post("/tasks/merge", response_model=Task)
+async def merge_tasks(req: MergeRequest, current_user: User = Depends(get_current_user)):
+    tasks = await db.tasks.find({"id": {"$in": req.task_ids}}).to_list(1000)
+    if len(tasks) != len(req.task_ids):
+        raise HTTPException(status_code=404, detail="Tasks not found")
+    if {t.get("discipline") for t in tasks} != {current_user.discipline}:
+        raise HTTPException(status_code=403, detail="Task discipline mismatch")
+    project_ids = {t.get("project_id") for t in tasks}
+    project_id = project_ids.pop() if len(project_ids) == 1 else None
+    merged = tasks[0].copy()
+    merged.update({"id": str(uuid.uuid4()), "title": req.title})
+    merged["story_points"] = sum(t.get("story_points") or 0 for t in tasks)
+    merged["estimated_hours"] = sum(t.get("estimated_hours") or 0 for t in tasks)
+    merged["duration_days"] = sum(t.get("duration_days") or 0 for t in tasks)
+    merged_task = Task(**merged)
+    await db.tasks.insert_one(merged_task.dict())
+    await db.tasks.delete_many({"id": {"$in": req.task_ids}})
+    nodes = await db.wbs.find({"task_id": {"$in": req.task_ids}}).to_list(1000)
+    parent_id = nodes[0].get("parent_id") if nodes else None
+    code = nodes[0].get("wbs_code", "") if nodes else ""
+    await db.wbs.delete_many({"task_id": {"$in": req.task_ids}})
+    if code:
+        if await db.wbs.find_one({"project_id": project_id, "parent_id": parent_id, "wbs_code": code}):
+            code = f"{code}-{uuid.uuid4().hex[:4]}"
+    node_data = {
+        "project_id": project_id or "",
+        "task_id": merged_task.id,
+        "title": merged_task.title,
+        "duration_days": merged_task.duration_days or 1.0,
+        "predecessors": merged_task.predecessor_tasks,
+        "early_start": 0.0,
+        "early_finish": merged_task.duration_days or 1.0,
+        "is_critical": False,
+        "parent_id": parent_id,
+        "wbs_code": code or str(uuid.uuid4())[:4],
+    }
+    await db.wbs.insert_one(WBSNode(**node_data).dict())
+    return merged_task
 
 
 @api_router.get(
@@ -1896,6 +2165,13 @@ async def parse_document_endpoint(
                 early_start=0.0,
                 early_finish=task_obj.duration_days or 1.0,
                 is_critical=False,
+                parent_id=None,
+
+                wbs_code=str(len(created_tasks) + 1),
+
+                code=str(len(created_tasks) + 1),
+                children=None,
+
             )
             await db.wbs.insert_one(node.dict())
             created_tasks.append(task_obj)
