@@ -15,9 +15,13 @@ The script installs Python packages listed in both `requirements.txt` files—in
 Running this script requires network access to fetch packages from external repositories.
 
 
-After the environment is prepared you can run the test suite with:
+After the environment is prepared you can run the test suite with the Makefile
+target which automatically executes the setup script before invoking `pytest`:
 
 ```bash
-pytest -q
+make test
 ```
+
+This is equivalent to running `bash scripts/setup_env.sh` followed by
+`pytest -q`.
 
