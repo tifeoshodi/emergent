@@ -537,13 +537,9 @@ WBSNode.model_rebuild()
 class CPMCalendar(BaseModel):
     """Calendar options for CPM export."""
 
-    working_days: List[str] = [
-        "mon",
-        "tue",
-        "wed",
-        "thu",
-        "fri",
-    ]
+    working_days: List[str] = Field(
+        default_factory=lambda: ["mon", "tue", "wed", "thu", "fri"]
+    )
     holidays: List[date] = Field(default_factory=list)
 
 
