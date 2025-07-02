@@ -60,3 +60,15 @@ def test_build_wbs_tree_uncategorized():
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
     assert "Uncategorized" in grouped
     assert len(grouped["Uncategorized"]) == 1
+
+
+def test_build_wbs_tree_phase_grouping():
+    tasks = [
+        make_task("t5", "Task P1", discipline="Engineering", phase="Phase 1"),
+        make_task("t6", "Task P2", discipline="Engineering", phase="Phase 2"),
+        make_task("t7", "Task P3", discipline="Engineering", phase="Phase 1"),
+    ]
+    rules = {"discipline": False, "phase": True, "deliverable_prefixes": {}}
+    grouped = build_wbs_tree(tasks, rules)
+    assert len(grouped["Phase 1"]) == 2
+    assert len(grouped["Phase 2"]) == 1

@@ -359,6 +359,7 @@ class Task(BaseModel):
     sprint_id: Optional[str] = None  # Sprint this task is assigned to
     story_points: Optional[int] = None  # Agile story points
     discipline: Optional[str] = None
+    phase: Optional[str] = None
     created_by: str
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
@@ -387,6 +388,7 @@ class TaskCreate(BaseModel):
     sprint_id: Optional[str] = None
     story_points: Optional[int] = None
     discipline: Optional[str] = None
+    phase: Optional[str] = None
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     # Gantt fields
@@ -410,6 +412,7 @@ class TaskUpdate(BaseModel):
     story_points: Optional[int] = None
     due_date: Optional[datetime] = None
     discipline: Optional[str] = None
+    phase: Optional[str] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
     # Gantt fields
@@ -513,6 +516,7 @@ class WBSNode(BaseModel):
 
 WBSNode.model_rebuild()
 
+
 # CPM export models
 class CPMCalendar(BaseModel):
     """Calendar options for CPM export."""
@@ -527,7 +531,7 @@ class CPMCalendar(BaseModel):
     holidays: List[date] = []
 
 
-CPMCalendar.model_rebuild()
+CPMCalendar.model_rebuild(_types_namespace=globals())
 
 
 class CPMExportTask(BaseModel):
@@ -548,8 +552,9 @@ class CPMExport(BaseModel):
     tasks: List[CPMExportTask]
 
 
-CPMExportTask.model_rebuild()
-CPMExport.model_rebuild()
+CPMExportTask.model_rebuild(_types_namespace=globals())
+CPMExport.model_rebuild(_types_namespace=globals())
+
 
 class WBSNodeCreate(BaseModel):
     title: str
@@ -563,7 +568,6 @@ class WBSCodeUpdate(BaseModel):
 
 class WBSMove(BaseModel):
     new_parent_id: Optional[str] = None
-
 
 
 # Resource allocation models
@@ -1548,6 +1552,7 @@ async def _record_wbs_audit(
     }
     await db.wbs_audit.insert_one(record, session=session)
 
+
 # Default grouping rules for building the WBS tree
 DEFAULT_WBS_RULES: Dict[str, Any] = {
     "discipline": True,
@@ -1610,27 +1615,6 @@ async def _generate_project_wbs(
 
     nodes = []
 
-
-    grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
-    for group_name, group_tasks in grouped.items():
-        for t in group_tasks:
-            m = metrics[t.id]
-            node_data = {
-                "project_id": project_id,
-                "task_id": t.id,
-                "title": t.title,
-                "duration_days": m["duration"],
-                "predecessors": t.predecessor_tasks,
-                "early_start": m["early_start"],
-                "early_finish": m["early_finish"],
-                "is_critical": m["is_critical"],
-                "wbs_group": group_name,
-            }
-            node = WBSNode(**node_data)
-            await db.wbs.insert_one(node.dict(), session=session)
-            nodes.append(node)
-
-
     for idx, t in enumerate(tasks, start=1):
         m = metrics[t.id]
         deps = [
@@ -1653,15 +1637,10 @@ async def _generate_project_wbs(
             "early_finish": m["early_finish"],
             "is_critical": m["is_critical"],
             "created_by": current_user.id,
-
             "parent_id": None,
-
             "wbs_code": str(idx),
-
             "code": str(idx),
             "children": None,
-
-
         }
         node = WBSNode(**node_data)
         await db.wbs.insert_one(node.dict(), session=session)
@@ -1710,7 +1689,6 @@ async def get_project_wbs(project_id: str):
     return roots
 
 
-
 @api_router.get("/projects/{project_id}/wbs/export", response_model=CPMExport)
 async def export_project_wbs_cpm(
     project_id: str,
@@ -1719,6 +1697,51 @@ async def export_project_wbs_cpm(
     current_user: User = Depends(get_current_user),
 ):
     """Export confirmed WBS for integration with external CPM services."""
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    tasks: List[CPMExportTask] = []
+    for nd in nodes_data:
+        tasks.append(
+            CPMExportTask(
+                id=nd["id"],
+                task_id=nd["task_id"],
+                title=nd.get("title", ""),
+                duration_days=nd.get("duration_days", 0.0),
+                predecessors=nd.get("predecessors", []),
+                early_start=nd.get("early_start", 0.0),
+                early_finish=nd.get("early_finish", 0.0),
+                is_critical=nd.get("is_critical", False),
+            )
+        )
+
+    working = [d.strip().lower() for d in working_days.split(",") if d.strip()]
+    valid_days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    for d in working:
+        if d not in valid_days:
+            raise HTTPException(status_code=400, detail=f"Invalid working day: {d}")
+
+    cal = CPMCalendar(working_days=working)
+
+    anchor_dt = None
+    if anchor_date:
+        try:
+            anchor_dt = datetime.fromisoformat(anchor_date)
+        except Exception as exc:  # pragma: no cover - validation
+            raise HTTPException(
+                status_code=400, detail="Invalid anchor_date format"
+            ) from exc
+
+    return CPMExport(
+        project_id=project_id,
+        anchor_date=anchor_dt,
+        calendar=cal.model_dump(),
+        tasks=[t.model_dump() for t in tasks],
+    )
+
+
 @api_router.post("/projects/{project_id}/wbs/nodes", response_model=WBSNode)
 async def create_wbs_node(project_id: str, node: WBSNodeCreate):
     project = await db.projects.find_one({"id": project_id})
@@ -1732,7 +1755,9 @@ async def create_wbs_node(project_id: str, node: WBSNodeCreate):
         }
     )
     if exists:
-        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
+        raise HTTPException(
+            status_code=400, detail="WBS code must be unique among siblings"
+        )
     node_data = node.dict()
     node_data.update(
         {
@@ -1763,8 +1788,12 @@ async def move_wbs_node(node_id: str, move: WBSMove):
             "id": {"$ne": node_id},
         }
     ):
-        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
-    await db.wbs.update_one({"id": node_id}, {"$set": {"parent_id": move.new_parent_id}})
+        raise HTTPException(
+            status_code=400, detail="WBS code must be unique among siblings"
+        )
+    await db.wbs.update_one(
+        {"id": node_id}, {"$set": {"parent_id": move.new_parent_id}}
+    )
     updated = await db.wbs.find_one({"id": node_id})
     return WBSNode(**updated)
 
@@ -1782,7 +1811,9 @@ async def update_wbs_code(node_id: str, payload: WBSCodeUpdate):
             "id": {"$ne": node_id},
         }
     ):
-        raise HTTPException(status_code=400, detail="WBS code must be unique among siblings")
+        raise HTTPException(
+            status_code=400, detail="WBS code must be unique among siblings"
+        )
     await db.wbs.update_one({"id": node_id}, {"$set": {"wbs_code": payload.wbs_code}})
     updated = await db.wbs.find_one({"id": node_id})
     return WBSNode(**updated)
@@ -1793,7 +1824,9 @@ class SplitRequest(BaseModel):
 
 
 @api_router.post("/tasks/{task_id}/split", response_model=List[Task])
-async def split_task(task_id: str, req: SplitRequest, current_user: User = Depends(get_current_user)):
+async def split_task(
+    task_id: str, req: SplitRequest, current_user: User = Depends(get_current_user)
+):
     task = await db.tasks.find_one({"id": task_id})
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -1809,7 +1842,13 @@ async def split_task(task_id: str, req: SplitRequest, current_user: User = Depen
         await db.tasks.insert_one(new_task.dict())
         if node:
             code = f"{node.get('wbs_code', '')}.{idx}"
-            if await db.wbs.find_one({"project_id": node["project_id"], "parent_id": node.get("parent_id"), "wbs_code": code}):
+            if await db.wbs.find_one(
+                {
+                    "project_id": node["project_id"],
+                    "parent_id": node.get("parent_id"),
+                    "wbs_code": code,
+                }
+            ):
                 code = f"{code}-{uuid.uuid4().hex[:4]}"
             node_data = {
                 "project_id": node["project_id"],
@@ -1834,7 +1873,9 @@ class MergeRequest(BaseModel):
 
 
 @api_router.post("/tasks/merge", response_model=Task)
-async def merge_tasks(req: MergeRequest, current_user: User = Depends(get_current_user)):
+async def merge_tasks(
+    req: MergeRequest, current_user: User = Depends(get_current_user)
+):
     tasks = await db.tasks.find({"id": {"$in": req.task_ids}}).to_list(1000)
     if len(tasks) != len(req.task_ids):
         raise HTTPException(status_code=404, detail="Tasks not found")
@@ -1855,7 +1896,9 @@ async def merge_tasks(req: MergeRequest, current_user: User = Depends(get_curren
     code = nodes[0].get("wbs_code", "") if nodes else ""
     await db.wbs.delete_many({"task_id": {"$in": req.task_ids}})
     if code:
-        if await db.wbs.find_one({"project_id": project_id, "parent_id": parent_id, "wbs_code": code}):
+        if await db.wbs.find_one(
+            {"project_id": project_id, "parent_id": parent_id, "wbs_code": code}
+        ):
             code = f"{code}-{uuid.uuid4().hex[:4]}"
     node_data = {
         "project_id": project_id or "",
@@ -1914,7 +1957,9 @@ async def get_dependency_suggestions(
         try:
             anchor_dt = datetime.fromisoformat(anchor_date)
         except Exception as exc:  # pragma: no cover - validation
-            raise HTTPException(status_code=400, detail="Invalid anchor_date format") from exc
+            raise HTTPException(
+                status_code=400, detail="Invalid anchor_date format"
+            ) from exc
 
     return CPMExport(
         project_id=project_id,
@@ -1928,7 +1973,6 @@ async def get_dependency_suggestions(
 
     task_objs = [MinimalTask(**t) for t in tasks_data]
     return propose_dependencies(task_objs)
-
 
 
 # Epic endpoints
@@ -2346,12 +2390,9 @@ async def parse_document_endpoint(
                 is_critical=False,
                 created_by=current_user.id,
                 parent_id=None,
-
                 wbs_code=str(len(created_tasks) + 1),
-
                 code=str(len(created_tasks) + 1),
                 children=None,
-
             )
             await db.wbs.insert_one(node.dict())
             created_tasks.append(task_obj)
