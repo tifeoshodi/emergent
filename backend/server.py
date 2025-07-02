@@ -1742,6 +1742,10 @@ async def _generate_project_wbs(
 async def generate_project_wbs_endpoint(
     project_id: str, current_user: User = Depends(require_role(UserRole.SCHEDULER))
 ):
+    if getattr(current_user, "role", None) != UserRole.SCHEDULER:
+        raise HTTPException(
+            status_code=403, detail="Only schedulers can generate a WBS"
+        )
     return await _generate_project_wbs(project_id, current_user)
 
 
