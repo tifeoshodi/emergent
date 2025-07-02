@@ -2005,7 +2005,7 @@ async def confirm_dependency_suggestions(
             confidence=1.0,
             created_by=current_user.id,
             status=status,
-        ).dict()
+        ).model_dump()
 
         await db.wbs.update_many(
             {"task_id": conf.to_task}, {"$push": {"dependency_metadata": meta}}
