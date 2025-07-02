@@ -1775,14 +1775,6 @@ async def export_project_wbs_cpm(
     )
 
 
-    return CPMExport(
-        project_id=project_id,
-        anchor_date=anchor_dt,
-        calendar=cal,
-        tasks=tasks,
-    )
-
-
 @api_router.post("/projects/{project_id}/wbs/nodes", response_model=WBSNode)
 async def create_wbs_node(project_id: str, node: WBSNodeCreate):
     project = await db.projects.find_one({"id": project_id})
