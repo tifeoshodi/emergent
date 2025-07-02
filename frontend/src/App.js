@@ -3,7 +3,11 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 // Set user ID after authentication
-// axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;import Components from "./Components";
+// axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
+import Components from "./Components";
+import WBSGenerator from "./WBSGenerator";
+
+const currentUser = { role: "scheduler" };
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -2516,6 +2520,15 @@ const Navigation = ({ currentPage }) => {
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
               </Link>
+              {currentUser.role === 'scheduler' && (
+                <Link
+                  to="/wbs"
+                  className={`nav-item ${currentPage === 'wbs' ? 'nav-item-active' : 'nav-item-inactive'}`}
+                >
+                  <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                  WBS Generator
+                </Link>
+              )}
               <Link
                 to="/dcc"
                 className={`nav-item ${currentPage === 'dcc' ? 'nav-item-active' : 'nav-item-inactive'}`}
@@ -2580,6 +2593,12 @@ function App() {
           <>
             <Navigation currentPage="dcc" />
             <main><DocumentControlCenter /></main>
+          </>
+        } />
+        <Route path="/wbs" element={
+          <>
+            <Navigation currentPage="wbs" />
+            <main><WBSGenerator /></main>
           </>
         } />
       </Routes>
