@@ -14,8 +14,10 @@ The script installs Python packages listed in both `requirements.txt` files and 
 
 Running this script requires network access to fetch packages from external repositories.
 
-## API
 
-Task objects include an optional `phase` string. The field may be supplied when
-creating or updating a task and is returned in task responses. It is used by the
-WBS generation logic to group tasks by project phase.
+After the environment is prepared you can run the test suite with:
+
+```bash
+pytest -q
+```
+
