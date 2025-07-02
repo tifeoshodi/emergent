@@ -612,7 +612,7 @@ class ProjectResource(BaseModel):
 # Discipline endpoints
 @api_router.post("/disciplines", response_model=Discipline)
 async def create_discipline(discipline: DisciplineCreate):
-    discipline_obj = Discipline(**discipline.dict())
+    discipline_obj = Discipline(**discipline.model_dump())
     await db.disciplines.insert_one(discipline_obj.model_dump())
     return discipline_obj
 
@@ -677,7 +677,7 @@ async def remove_discipline_member(discipline_name: str, user_id: str):
 # User endpoints
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
-    user_dict = user.dict()
+    user_dict = user.model_dump()
     user_obj = User(**user_dict)
     await db.users.insert_one(user_obj.model_dump())
     if user_obj.discipline:
@@ -730,7 +730,7 @@ async def create_project(project: ProjectCreate):
     if not pm:
         raise HTTPException(status_code=404, detail="Project manager not found")
 
-    project_dict = project.dict()
+    project_dict = project.model_dump()
     project_dict["created_by"] = (
         project.project_manager_id
     )  # For now, assume creator is PM
@@ -782,7 +782,7 @@ async def create_task(task: TaskCreate, current_user: User = Depends(get_current
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
-    task_dict = task.dict()
+    task_dict = task.model_dump()
     if task_dict.get("discipline") is None:
         task_dict["discipline"] = current_user.discipline
     elif task_dict["discipline"] != current_user.discipline:
@@ -854,7 +854,7 @@ async def update_task(
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    update_data = {k: v for k, v in task_update.dict().items() if v is not None}
+    update_data = {k: v for k, v in task_update.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
 
     async with await client.start_session() as session:
@@ -1159,10 +1159,10 @@ async def get_project_kanban(
 
     for task in tasks:
         task_obj = Task(**task)
-        kanban_board[task_obj.status.value].append(task_obj.dict())
+        kanban_board[task_obj.status.value].append(task_obj.model_dump())
 
     return {
-        "project": Project(**project).dict(),
+        "project": Project(**project).model_dump(),
         "board": kanban_board,
     }
 
@@ -1176,7 +1176,7 @@ async def get_discipline_kanban(discipline: str):
     board = {"todo": [], "in_progress": [], "review": [], "done": []}
     for task in tasks:
         task_obj = Task(**task)
-        board[task_obj.status.value].append(task_obj.dict())
+        board[task_obj.status.value].append(task_obj.model_dump())
 
     return {"discipline": discipline, "board": board}
 
@@ -2062,7 +2062,7 @@ async def create_epic(epic: EpicCreate):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    epic_dict = epic.dict()
+    epic_dict = epic.model_dump()
     epic_dict["created_by"] = "default_user"  # TODO: Get from auth
     epic_obj = Epic(**epic_dict)
     await db.epics.insert_one(epic_obj.model_dump())
@@ -2128,7 +2128,7 @@ async def create_sprint(sprint: SprintCreate):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    sprint_dict = sprint.dict()
+    sprint_dict = sprint.model_dump()
     sprint_dict["created_by"] = "default_user"  # TODO: Get from auth
     sprint_obj = Sprint(**sprint_dict)
     await db.sprints.insert_one(sprint_obj.model_dump())
@@ -2203,9 +2203,9 @@ async def get_sprint_board(
 
     for task in tasks:
         task_obj = Task(**task)
-        sprint_board[task_obj.status.value].append(task_obj.dict())
+        sprint_board[task_obj.status.value].append(task_obj.model_dump())
 
-    return {"sprint": Sprint(**sprint).dict(), "board": sprint_board}
+    return {"sprint": Sprint(**sprint).model_dump(), "board": sprint_board}
 
 
 # Sprint analytics
@@ -2478,7 +2478,7 @@ async def parse_document_endpoint(
             created_tasks.append(task_obj)
             created_nodes.append(node)
 
-        data["created_tasks"] = [t.dict() for t in created_tasks]
+        data["created_tasks"] = [t.model_dump() for t in created_tasks]
         if created_nodes:
             await _record_wbs_audit(
                 project_id or "",
@@ -2572,7 +2572,7 @@ async def update_document(
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    update_data = {k: v for k, v in document_update.dict().items() if v is not None}
+    update_data = {k: v for k, v in document_update.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
 
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
