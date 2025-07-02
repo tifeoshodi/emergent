@@ -1,29 +1,37 @@
 from __future__ import annotations
-from fastapi import (
-    FastAPI,
-    APIRouter,
-    HTTPException,
-    Depends,
-    File,
-    UploadFile,
-    Form,
-    Header,
-)
-from fastapi.responses import FileResponse
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.client_session import ClientSession
-import os
+
 import logging
-from pathlib import Path
-from document_parser import parse_document as ocr_parse_document
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+import os
+import shutil
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-import shutil
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from document_parser import parse_document as ocr_parse_document
+from dotenv import load_dotenv
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    UploadFile,
+)
+from fastapi.responses import FileResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field
+from pymongo.client_session import ClientSession
+from starlette.middleware.cors import CORSMiddleware
+
+from backend.dependency_suggester import (
+    DependencySuggestion,
+    MinimalTask,
+    propose_dependencies,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -1465,6 +1473,26 @@ async def get_project_wbs(project_id: str):
 
     nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
     return [WBSNode(**n) for n in nodes]
+
+
+@api_router.get(
+    "/projects/{project_id}/dependency-suggestions",
+    response_model=List[DependencySuggestion],
+)
+async def get_dependency_suggestions(
+    project_id: str, current_user: User = Depends(get_current_user)
+):
+    """Propose task dependencies for the given project."""
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    tasks_data = await db.tasks.find(
+        {"project_id": project_id, "discipline": current_user.discipline}
+    ).to_list(1000)
+
+    task_objs = [MinimalTask(**t) for t in tasks_data]
+    return propose_dependencies(task_objs)
 
 
 # Epic endpoints
