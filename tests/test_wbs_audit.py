@@ -121,11 +121,12 @@ def test_wbs_audit_logging(monkeypatch):
 
     nodes = asyncio.run(server._generate_project_wbs("p1", user))
 
-    assert len(db.wbs.inserted) == 2
+    assert len(db.wbs.inserted) == 3
     assert len(db.wbs_audit.inserted) == 1
 
     audit = db.wbs_audit.inserted[0]
     assert audit["project_id"] == "p1"
-    assert len(audit["nodes"]) == 2
-    assert audit["nodes"][1]["dependency_metadata"][0]["predecessor_id"] == "t1"
+    assert len(audit["nodes"]) == 3
+    t2_node = next(n for n in audit["nodes"] if n.get("task_id") == "t2")
+    assert t2_node["dependency_metadata"][0]["predecessor_id"] == "t1"
     assert audit["nodes"][0]["created_by"] == "u1"
