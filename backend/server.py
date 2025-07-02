@@ -200,7 +200,7 @@ class UserCreate(BaseModel):
 class Discipline(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    members: List[str] = []
+    members: List[str] = Field(default_factory=list)
 
 
 class DisciplineCreate(BaseModel):
@@ -240,7 +240,7 @@ class Epic(BaseModel):
     end_date: Optional[datetime] = None
     story_points: Optional[int] = None
     priority: TaskPriority = TaskPriority.MEDIUM
-    labels: List[str] = []
+    labels: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -254,7 +254,7 @@ class EpicCreate(BaseModel):
     end_date: Optional[datetime] = None
     story_points: Optional[int] = None
     priority: TaskPriority = TaskPriority.MEDIUM
-    labels: List[str] = []
+    labels: List[str] = Field(default_factory=list)
 
 
 class Sprint(BaseModel):
@@ -302,7 +302,7 @@ class DocumentBase(BaseModel):
     dic_completed_at: Optional[datetime] = None
     idc_completed_at: Optional[datetime] = None
     dcc_completed_at: Optional[datetime] = None
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     is_confidential: bool = False
     expiry_date: Optional[datetime] = None  # For certificates, etc.
 
@@ -373,12 +373,12 @@ class Task(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     duration_days: Optional[float] = None
-    predecessor_tasks: List[str] = []  # List of task IDs this task depends on
+    predecessor_tasks: List[str] = Field(default_factory=list)  # List of task IDs this task depends on
     is_milestone: bool = False
     progress_percent: Optional[float] = 0.0  # 0-100
     # Resource allocation
-    required_resources: List[str] = []  # List of user IDs required for this task
-    tags: List[str] = []
+    required_resources: List[str] = Field(default_factory=list)  # List of user IDs required for this task
+    tags: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -400,10 +400,10 @@ class TaskCreate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     duration_days: Optional[float] = None
-    predecessor_tasks: List[str] = []
+    predecessor_tasks: List[str] = Field(default_factory=list)
     is_milestone: bool = False
-    required_resources: List[str] = []
-    tags: List[str] = []
+    required_resources: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
 
 
 class TaskUpdate(BaseModel):
@@ -475,7 +475,7 @@ class GanttTask(BaseModel):
     duration_days: float
     progress_percent: float
     assigned_to: Optional[str] = None
-    predecessor_tasks: List[str] = []
+    predecessor_tasks: List[str] = Field(default_factory=list)
     is_milestone: bool = False
     status: TaskStatus
     priority: TaskPriority
@@ -485,7 +485,7 @@ class GanttData(BaseModel):
     tasks: List[GanttTask]
     project_start: datetime
     project_end: datetime
-    critical_path: List[str] = []  # Task IDs on critical path
+    critical_path: List[str] = Field(default_factory=list)  # Task IDs on critical path
 
 
 # WBS models
@@ -518,8 +518,8 @@ class WBSNode(BaseModel):
     wbs_code: str = ""
     title: str
     duration_days: float
-    predecessors: List[str] = []
-    dependency_metadata: List[DependencyMetadata] = []
+    predecessors: List[str] = Field(default_factory=list)
+    dependency_metadata: List[DependencyMetadata] = Field(default_factory=list)
     early_start: float
     early_finish: float
     is_critical: bool = False
@@ -544,7 +544,7 @@ class CPMCalendar(BaseModel):
         "thu",
         "fri",
     ]
-    holidays: List[date] = []
+    holidays: List[date] = Field(default_factory=list)
 
 
 CPMCalendar.model_rebuild(_types_namespace=globals())
@@ -555,7 +555,7 @@ class CPMExportTask(BaseModel):
     task_id: str
     title: str
     duration_days: float
-    predecessors: List[str] = []
+    predecessors: List[str] = Field(default_factory=list)
     early_start: float
     early_finish: float
     is_critical: bool = False

@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import Iterable, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MinimalTask(BaseModel):
@@ -15,7 +15,7 @@ class MinimalTask(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     assigned_to: Optional[str] = None
-    required_resources: List[str] = []
+    required_resources: List[str] = Field(default_factory=list)
     discipline: Optional[str] = None
 
 
