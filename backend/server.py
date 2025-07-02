@@ -104,6 +104,17 @@ async def get_discipline_scope(
     return {"discipline": current_user.discipline}
 
 
+def require_role(role: "UserRole"):
+    """Dependency that ensures the current user has the given role."""
+
+    async def dependency(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role != role:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return current_user
+
+    return dependency
+
+
 # Enums
 class TaskStatus(str, Enum):
     TODO = "todo"
@@ -127,6 +138,7 @@ class UserRole(str, Enum):
     SENIOR_ENGINEER_2 = "senior_engineer_2"
     INTERMEDIATE_ENGINEER = "intermediate_engineer"
     JUNIOR_ENGINEER = "junior_engineer"
+    SCHEDULER = "scheduler"
 
 
 class ProjectStatus(str, Enum):
@@ -1728,7 +1740,7 @@ async def _generate_project_wbs(
 
 @api_router.post("/projects/{project_id}/wbs", response_model=List[WBSNode])
 async def generate_project_wbs_endpoint(
-    project_id: str, current_user: User = Depends(get_current_user)
+    project_id: str, current_user: User = Depends(require_role(UserRole.SCHEDULER))
 ):
     return await _generate_project_wbs(project_id, current_user)
 
@@ -2411,7 +2423,7 @@ async def parse_document_endpoint(
     file: UploadFile = File(...),
     project_id: Optional[str] = Form(None),
     discipline: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(UserRole.SCHEDULER)),
 ):
     """Upload a CTR/MDR file, apply OCR and create tasks from the result."""
     try:
