@@ -25,7 +25,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from backend.external_integrations.supabase_client import supabase
+from backend.external_integrations.supabase_client import supabase, insert, select
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from collections import deque
@@ -744,7 +744,7 @@ async def update_user(user_id: str, user_update: dict):
 
 # Project endpoints
 @api_router.post("/projects", response_model=Project)
-async def create_project(project: ProjectCreate):
+async def create_project(project: ProjectCreate, authorization: Optional[str] = Header(None)):
     # Verify project manager exists
     pm = await db.users.find_one({"id": project.project_manager_id})
     if not pm:
@@ -757,11 +757,24 @@ async def create_project(project: ProjectCreate):
     project_dict["status"] = ProjectStatus.PLANNING
     project_obj = Project(**project_dict)
     await db.projects.insert_one(project_obj.model_dump())
+    if supabase and authorization:
+        token = authorization.split(" ")[-1]
+        try:
+            insert("projects", project_obj.model_dump(), jwt=token)
+        except Exception as exc:
+            logger.warning(f"Supabase insert failed: {exc}")
     return project_obj
 
 
 @api_router.get("/projects", response_model=List[Project])
-async def get_projects():
+async def get_projects(source: str = "mongo", authorization: Optional[str] = Header(None)):
+    if source == "supabase" and supabase and authorization:
+        token = authorization.split(" ")[-1]
+        try:
+            data = select("projects", jwt=token)
+            return [Project(**p) for p in data]
+        except Exception as exc:
+            logger.warning(f"Supabase select failed: {exc}")
     projects = await db.projects.find().to_list(1000)
     return [Project(**project) for project in projects]
 
