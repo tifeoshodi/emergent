@@ -1,12 +1,75 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import axios from "axios";
-// Set user ID after authentication
-// axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;import Components from "./Components";
+import Components from "./Components";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
+
+// Authentication context to store the currently logged in user
+export const AuthContext = createContext({ currentUser: null });
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const login = async (id) => {
+    const res = await axios.get(`${API}/users/${id}`);
+    axios.defaults.headers.common["X-User-ID"] = res.data.id;
+    setCurrentUser(res.data);
+  };
+
+  const logout = () => {
+    delete axios.defaults.headers.common["X-User-ID"];
+    setCurrentUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ currentUser, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Simple login page allowing user ID entry
+const LoginPage = () => {
+  const [userId, setUserId] = useState("");
+  const [error, setError] = useState(null);
+  const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await login(userId);
+      navigate("/");
+    } catch (err) {
+      setError("Login failed");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow w-72">
+        <h2 className="mb-4 text-lg font-semibold text-center">Login</h2>
+        <input
+          className="border p-2 w-full mb-3"
+          placeholder="User ID"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+        />
+        {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded"
+        >
+          Login
+        </button>
+      </form>
+    </div>
+  );
+};
 
 // Maximum number of retries for API calls
 const MAX_RETRIES = 3;
@@ -2541,11 +2604,17 @@ const Navigation = ({ currentPage }) => {
 };
 
 function App() {
+  const { currentUser } = useContext(AuthContext);
+
+  if (!currentUser) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="App min-h-screen bg-gray-50">
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={
           <>
             <Navigation currentPage="dashboard" />
@@ -2588,3 +2657,6 @@ function App() {
 }
 
 export default App;
+
+// Named exports for context and provider
+export { AuthContext, AuthProvider };
