@@ -373,11 +373,15 @@ class Task(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     duration_days: Optional[float] = None
-    predecessor_tasks: List[str] = Field(default_factory=list)  # List of task IDs this task depends on
+    predecessor_tasks: List[str] = Field(
+        default_factory=list
+    )  # List of task IDs this task depends on
     is_milestone: bool = False
     progress_percent: Optional[float] = 0.0  # 0-100
     # Resource allocation
-    required_resources: List[str] = Field(default_factory=list)  # List of user IDs required for this task
+    required_resources: List[str] = Field(
+        default_factory=list
+    )  # List of user IDs required for this task
     tags: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -1513,6 +1517,13 @@ def _calculate_cpm(tasks: List[Task]):
     for tid in durations:
         ef(tid)
 
+    # build successor map for backward pass
+    succs: Dict[str, List[str]] = {tid: [] for tid in durations}
+    for tid, ps in preds.items():
+        for p in ps:
+            if p in succs:
+                succs[p].append(tid)
+
     longest: Dict[str, float] = {}
 
     def longest_path(tid: str) -> float:
@@ -1539,11 +1550,27 @@ def _calculate_cpm(tasks: List[Task]):
     build(end_task)
     critical_path.reverse()
 
+    project_duration = max(early_finish.values()) if early_finish else 0.0
+    order = _topological_sort(list(durations.keys()), preds)
+    late_finish: Dict[str, float] = {}
+    late_start: Dict[str, float] = {}
+    for tid in reversed(order):
+        succ = succs.get(tid) or []
+        if not succ:
+            lf = project_duration
+        else:
+            lf = min(late_start[s] for s in succ)
+        late_finish[tid] = lf
+        late_start[tid] = lf - durations[tid]
+
     results = {}
     for tid in durations:
         results[tid] = {
             "early_start": early_start[tid],
             "early_finish": early_finish[tid],
+            "late_start": late_start[tid],
+            "late_finish": late_finish[tid],
+            "total_float": late_start[tid] - early_start[tid],
             "duration": durations[tid],
             "is_critical": tid in critical_path,
         }
@@ -1994,9 +2021,7 @@ async def confirm_dependency_suggestions(
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
-        status = (
-            DependencyStatus.ACCEPTED if conf.accept else DependencyStatus.REJECTED
-        )
+        status = DependencyStatus.ACCEPTED if conf.accept else DependencyStatus.REJECTED
 
         meta = DependencyMetadata(
             predecessor_id=conf.from_task,
