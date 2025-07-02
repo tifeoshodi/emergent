@@ -132,6 +132,7 @@ def test_wbs_audit_logging(monkeypatch):
     assert {n.id for n in nodes} == {n["id"] for n in audit["nodes"]}
     t2_node = next(n for n in audit["nodes"] if n.get("task_id") == "t2")
     assert t2_node["dependency_metadata"][0]["predecessor_id"] == "t1"
+    assert t2_node["dependency_metadata"][0]["status"] == "accepted"
 
     assert any(
         node.get("dependency_metadata") and node["dependency_metadata"][0]["predecessor_id"] == "t1"

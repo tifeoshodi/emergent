@@ -1664,6 +1664,7 @@ async def _generate_project_wbs(
                     type="predecessor",
                     confidence=1.0,
                     created_by=current_user.id,
+                    status=DependencyStatus.ACCEPTED,
                 ).model_dump()
                 for p in t.predecessor_tasks
             ]
@@ -2431,6 +2432,7 @@ async def parse_document_endpoint(
                     type="predecessor",
                     confidence=1.0,
                     created_by=current_user.id,
+                    status=DependencyStatus.ACCEPTED,
                 ).model_dump()
                 for p in task_obj.predecessor_tasks
             ]
