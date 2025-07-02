@@ -514,7 +514,6 @@ class WBSNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     wbs_group: Optional[str] = None
-    code: Optional[str] = None
     children: Optional[List["WBSNode"]] = None
 
 
@@ -1641,7 +1640,6 @@ async def _generate_project_wbs(
             created_by=current_user.id,
             parent_id=None,
             wbs_code=str(g_idx),
-            code=str(g_idx),
             children=None,
         )
         await db.wbs.insert_one(group_node.dict(), session=session)
@@ -1671,7 +1669,6 @@ async def _generate_project_wbs(
                 "created_by": current_user.id,
                 "parent_id": group_node.id,
                 "wbs_code": f"{g_idx}.{t_idx}",
-                "code": f"{g_idx}.{t_idx}",
                 "children": None,
                 "wbs_group": group_name,
                 "created_by": current_user.id,
