@@ -13,3 +13,9 @@ bash scripts/setup_env.sh
 The script installs Python packages listed in both `requirements.txt` files and installs frontend dependencies via `yarn` if available.
 
 Running this script requires network access to fetch packages from external repositories.
+
+After the environment is prepared you can run the test suite with:
+
+```bash
+pytest -q
+```
