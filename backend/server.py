@@ -1803,7 +1803,7 @@ async def create_wbs_node(project_id: str, node: WBSNodeCreate):
         raise HTTPException(
             status_code=400, detail="WBS code must be unique among siblings"
         )
-    node_data = node.dict()
+    node_data = node.model_dump()
     node_data.update(
         {
             "project_id": project_id,
