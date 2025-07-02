@@ -20,6 +20,7 @@ from pathlib import Path
 from document_parser import parse_document as ocr_parse_document
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
+from collections import deque
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
@@ -1343,6 +1344,32 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
 # ------------------- WBS Endpoints -------------------
 
 
+def _topological_sort(nodes: List[str], preds: Dict[str, List[str]]) -> List[str]:
+    """Return a topological ordering of nodes or raise ValueError if a cycle exists."""
+    succs: Dict[str, List[str]] = {n: [] for n in nodes}
+    indegree: Dict[str, int] = {n: 0 for n in nodes}
+    for node in nodes:
+        for p in preds.get(node, []):
+            if p not in succs:
+                continue
+            succs[p].append(node)
+            indegree[node] += 1
+
+    q: deque[str] = deque(n for n in nodes if indegree[n] == 0)
+    order: List[str] = []
+    while q:
+        n = q.popleft()
+        order.append(n)
+        for s in succs.get(n, []):
+            indegree[s] -= 1
+            if indegree[s] == 0:
+                q.append(s)
+
+    if len(order) != len(nodes):
+        raise ValueError("Cycle detected in dependencies")
+    return order
+
+
 def _calculate_cpm(tasks: List[Task]):
     """Compute critical path metrics for tasks."""
     durations = {}
@@ -1356,6 +1383,11 @@ def _calculate_cpm(tasks: List[Task]):
                 dur = 1
         durations[t.id] = dur
         preds[t.id] = t.predecessor_tasks or []
+
+    try:
+        _topological_sort(list(durations.keys()), preds)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     early_start: Dict[str, float] = {}
     early_finish: Dict[str, float] = {}
