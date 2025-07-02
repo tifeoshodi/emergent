@@ -1800,30 +1800,12 @@ async def export_project_wbs_cpm(
             raise HTTPException(
                 status_code=400, detail="Invalid anchor_date format"
             ) from exc
-            raise HTTPException(status_code=400, detail="Invalid anchor_date format") from exc
 
-    return CPMExport.model_validate(
-        {
-            "project_id": project_id,
-            "anchor_date": anchor_dt,
-            "calendar": cal.model_dump(),
-            "tasks": [t.model_dump() for t in tasks],
-        }
-    )
-
-    return CPMExport(
-        project_id=project_id,
-        anchor_date=anchor_dt,
-        calendar=cal.model_dump(),
-        tasks=[t.model_dump() for t in tasks],
-    return CPMExport.model_construct(
     return CPMExport(
         project_id=project_id,
         anchor_date=anchor_dt,
         calendar=cal,
         tasks=tasks,
-
-
     )
 
 
