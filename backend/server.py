@@ -506,8 +506,6 @@ class WBSNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     wbs_group: Optional[str] = None
-    parent_id: Optional[str] = None
-    code: Optional[str] = None
     children: Optional[List["WBSNode"]] = None
 
 
@@ -1625,6 +1623,7 @@ async def _generate_project_wbs(
                 "early_finish": m["early_finish"],
                 "is_critical": m["is_critical"],
                 "wbs_group": group_name,
+                "created_by": current_user.id,
             }
             node = WBSNode(**node_data)
             await db.wbs.insert_one(node.dict(), session=session)
@@ -1657,8 +1656,6 @@ async def _generate_project_wbs(
             "parent_id": None,
 
             "wbs_code": str(idx),
-
-            "code": str(idx),
             "children": None,
 
 
@@ -1719,6 +1716,48 @@ async def export_project_wbs_cpm(
     current_user: User = Depends(get_current_user),
 ):
     """Export confirmed WBS for integration with external CPM services."""
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    tasks: List[CPMExportTask] = []
+    for nd in nodes_data:
+        tasks.append(
+            CPMExportTask(
+                id=nd["id"],
+                task_id=nd["task_id"],
+                title=nd.get("title", ""),
+                duration_days=nd.get("duration_days", 0.0),
+                predecessors=nd.get("predecessors", []),
+                early_start=nd.get("early_start", 0.0),
+                early_finish=nd.get("early_finish", 0.0),
+                is_critical=nd.get("is_critical", False),
+            )
+        )
+
+    working = [d.strip().lower() for d in working_days.split(",") if d.strip()]
+    valid_days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    for d in working:
+        if d not in valid_days:
+            raise HTTPException(status_code=400, detail=f"Invalid working day: {d}")
+
+    cal = CPMCalendar(working_days=working)
+
+    anchor_dt = None
+    if anchor_date:
+        try:
+            anchor_dt = datetime.fromisoformat(anchor_date)
+        except Exception as exc:  # pragma: no cover - validation
+            raise HTTPException(status_code=400, detail="Invalid anchor_date format") from exc
+
+    return CPMExport.model_construct(
+        project_id=project_id,
+        anchor_date=anchor_dt,
+        calendar=cal,
+        tasks=tasks,
+    )
+
 @api_router.post("/projects/{project_id}/wbs/nodes", response_model=WBSNode)
 async def create_wbs_node(project_id: str, node: WBSNodeCreate):
     project = await db.projects.find_one({"id": project_id})
@@ -1885,43 +1924,6 @@ async def get_dependency_suggestions(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
-    tasks: List[CPMExportTask] = []
-    for nd in nodes_data:
-        tasks.append(
-            CPMExportTask(
-                id=nd["id"],
-                task_id=nd["task_id"],
-                title=nd.get("title", ""),
-                duration_days=nd.get("duration_days", 0.0),
-                predecessors=nd.get("predecessors", []),
-                early_start=nd.get("early_start", 0.0),
-                early_finish=nd.get("early_finish", 0.0),
-                is_critical=nd.get("is_critical", False),
-            )
-        )
-
-    working = [d.strip().lower() for d in working_days.split(",") if d.strip()]
-    valid_days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    for d in working:
-        if d not in valid_days:
-            raise HTTPException(status_code=400, detail=f"Invalid working day: {d}")
-
-    cal = CPMCalendar(working_days=working)
-
-    anchor_dt = None
-    if anchor_date:
-        try:
-            anchor_dt = datetime.fromisoformat(anchor_date)
-        except Exception as exc:  # pragma: no cover - validation
-            raise HTTPException(status_code=400, detail="Invalid anchor_date format") from exc
-
-    return CPMExport(
-        project_id=project_id,
-        anchor_date=anchor_dt,
-        calendar=cal,
-        tasks=tasks,
-    )
     tasks_data = await db.tasks.find(
         {"project_id": project_id, "discipline": current_user.discipline}
     ).to_list(1000)
@@ -2348,8 +2350,6 @@ async def parse_document_endpoint(
                 parent_id=None,
 
                 wbs_code=str(len(created_tasks) + 1),
-
-                code=str(len(created_tasks) + 1),
                 children=None,
 
             )
