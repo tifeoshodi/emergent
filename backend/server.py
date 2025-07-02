@@ -466,6 +466,14 @@ class GanttData(BaseModel):
 
 
 # WBS models
+class DependencyMetadata(BaseModel):
+    predecessor_id: str
+    type: str
+    confidence: float
+    created_by: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class WBSNode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     project_id: str
@@ -473,9 +481,12 @@ class WBSNode(BaseModel):
     title: str
     duration_days: float
     predecessors: List[str] = []
+    dependency_metadata: List[DependencyMetadata] = []
     early_start: float
     early_finish: float
     is_critical: bool = False
+    created_by: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # Resource allocation models
@@ -1411,6 +1422,25 @@ def _calculate_cpm(tasks: List[Task]):
     return critical_path, results
 
 
+async def _record_wbs_audit(
+    project_id: str,
+    user_id: str,
+    nodes: List[WBSNode],
+    critical_path: List[str] | None,
+    metrics: Dict[str, Dict[str, float]] | None,
+    session: ClientSession | None = None,
+):
+    """Store a WBS version record with inference logs."""
+    record = {
+        "project_id": project_id,
+        "timestamp": datetime.utcnow(),
+        "created_by": user_id,
+        "nodes": [n.dict() for n in nodes],
+        "inference_logs": {"critical_path": critical_path, "metrics": metrics},
+    }
+    await db.wbs_audit.insert_one(record, session=session)
+
+
 async def _generate_project_wbs(
     project_id: str, current_user: User, session: ClientSession | None = None
 ):
@@ -1433,19 +1463,39 @@ async def _generate_project_wbs(
     nodes = []
     for t in tasks:
         m = metrics[t.id]
+        deps = [
+            DependencyMetadata(
+                predecessor_id=p,
+                type="predecessor",
+                confidence=1.0,
+                created_by=current_user.id,
+            ).dict()
+            for p in t.predecessor_tasks
+        ]
         node_data = {
             "project_id": project_id,
             "task_id": t.id,
             "title": t.title,
             "duration_days": m["duration"],
             "predecessors": t.predecessor_tasks,
+            "dependency_metadata": deps,
             "early_start": m["early_start"],
             "early_finish": m["early_finish"],
             "is_critical": m["is_critical"],
+            "created_by": current_user.id,
         }
         node = WBSNode(**node_data)
         await db.wbs.insert_one(node.dict(), session=session)
         nodes.append(node)
+
+    await _record_wbs_audit(
+        project_id,
+        current_user.id,
+        nodes,
+        critical_path,
+        metrics,
+        session=session,
+    )
 
     return nodes
 
@@ -1841,6 +1891,7 @@ async def parse_document_endpoint(
         task_discipline = discipline or current_user.discipline
 
         created_tasks: List[Task] = []
+        created_nodes: List[WBSNode] = []
         for item in data.get("tasks", []):
             task_data = {
                 "title": item.get("task", "Untitled Task"),
@@ -1859,20 +1910,41 @@ async def parse_document_endpoint(
             task_obj = Task(**task_data)
             await db.tasks.insert_one(task_obj.dict())
 
+            deps = [
+                DependencyMetadata(
+                    predecessor_id=p,
+                    type="predecessor",
+                    confidence=1.0,
+                    created_by=current_user.id,
+                ).dict()
+                for p in task_obj.predecessor_tasks
+            ]
+
             node = WBSNode(
-                project_id=project_id or "",  # empty string if no project
+                project_id=project_id or "",
                 task_id=task_obj.id,
                 title=task_obj.title,
                 duration_days=task_obj.duration_days or 1.0,
                 predecessors=task_obj.predecessor_tasks,
+                dependency_metadata=deps,
                 early_start=0.0,
                 early_finish=task_obj.duration_days or 1.0,
                 is_critical=False,
+                created_by=current_user.id,
             )
             await db.wbs.insert_one(node.dict())
             created_tasks.append(task_obj)
+            created_nodes.append(node)
 
         data["created_tasks"] = [t.dict() for t in created_tasks]
+        if created_nodes:
+            await _record_wbs_audit(
+                project_id or "",
+                current_user.id,
+                created_nodes,
+                None,
+                None,
+            )
         return data
     except Exception as e:
         raise HTTPException(
