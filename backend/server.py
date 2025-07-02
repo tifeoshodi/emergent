@@ -127,6 +127,7 @@ class UserRole(str, Enum):
     SENIOR_ENGINEER_2 = "senior_engineer_2"
     INTERMEDIATE_ENGINEER = "intermediate_engineer"
     JUNIOR_ENGINEER = "junior_engineer"
+    SCHEDULER = "scheduler"
 
 
 class ProjectStatus(str, Enum):
@@ -1730,6 +1731,10 @@ async def _generate_project_wbs(
 async def generate_project_wbs_endpoint(
     project_id: str, current_user: User = Depends(get_current_user)
 ):
+    if getattr(current_user, "role", None) != UserRole.SCHEDULER:
+        raise HTTPException(
+            status_code=403, detail="Only schedulers can generate a WBS"
+        )
     return await _generate_project_wbs(project_id, current_user)
 
 
