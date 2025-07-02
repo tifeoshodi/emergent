@@ -1616,6 +1616,64 @@ async def _generate_project_wbs(
     await db.wbs.delete_many({"project_id": project_id}, session=session)
 
     nodes = []
+
+
+    grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
+
+    for g_idx, (group_name, group_tasks) in enumerate(sorted(grouped.items()), start=1):
+        group_node = WBSNode(
+            project_id=project_id,
+            task_id=None,
+            title=group_name,
+            duration_days=0.0,
+            predecessors=[],
+            dependency_metadata=[],
+            early_start=0.0,
+            early_finish=0.0,
+            is_critical=False,
+            created_by=current_user.id,
+            parent_id=None,
+            wbs_code=str(g_idx),
+            code=str(g_idx),
+            children=None,
+        )
+        await db.wbs.insert_one(group_node.dict(), session=session)
+        nodes.append(group_node)
+
+        for t_idx, t in enumerate(group_tasks, start=1):
+            m = metrics[t.id]
+            deps = [
+                DependencyMetadata(
+                    predecessor_id=p,
+                    type="predecessor",
+                    confidence=1.0,
+                    created_by=current_user.id,
+                ).dict()
+                for p in t.predecessor_tasks
+            ]
+            node_data = {
+                "project_id": project_id,
+                "task_id": t.id,
+                "title": t.title,
+                "duration_days": m["duration"],
+                "predecessors": t.predecessor_tasks,
+                "dependency_metadata": deps,
+                "early_start": m["early_start"],
+                "early_finish": m["early_finish"],
+                "is_critical": m["is_critical"],
+                "created_by": current_user.id,
+                "parent_id": group_node.id,
+                "wbs_code": f"{g_idx}.{t_idx}",
+                "code": f"{g_idx}.{t_idx}",
+                "children": None,
+                "wbs_group": group_name,
+                "created_by": current_user.id,
+            }
+            node = WBSNode(**node_data)
+            await db.wbs.insert_one(node.dict(), session=session)
+            nodes.append(node)
+
+
     for idx, t in enumerate(tasks, start=1):
         m = metrics[t.id]
         deps = [
@@ -1642,8 +1700,6 @@ async def _generate_project_wbs(
             "parent_id": None,
 
             "wbs_code": str(idx),
-
-            "code": str(idx),
             "children": None,
 
 
@@ -1746,6 +1802,20 @@ async def export_project_wbs_cpm(
             "calendar": cal.model_dump(),
             "tasks": [t.model_dump() for t in tasks],
         }
+    )
+
+    return CPMExport(
+        project_id=project_id,
+        anchor_date=anchor_dt,
+        calendar=cal.model_dump(),
+        tasks=[t.model_dump() for t in tasks],
+    return CPMExport.model_construct(
+    return CPMExport(
+        project_id=project_id,
+        anchor_date=anchor_dt,
+        calendar=cal,
+        tasks=tasks,
+
     )
 
 
@@ -2341,8 +2411,6 @@ async def parse_document_endpoint(
                 parent_id=None,
 
                 wbs_code=str(len(created_tasks) + 1),
-
-                code=str(len(created_tasks) + 1),
                 children=None,
 
             )
