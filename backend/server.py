@@ -1609,6 +1609,7 @@ async def _generate_project_wbs(
     nodes = []
 
 
+
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
 
     for g_idx, (group_name, group_tasks) in enumerate(sorted(grouped.items()), start=1):
@@ -1786,6 +1787,15 @@ async def export_project_wbs_cpm(
         except Exception as exc:  # pragma: no cover - validation
             raise HTTPException(status_code=400, detail="Invalid anchor_date format") from exc
 
+    return CPMExport.model_validate(
+        {
+            "project_id": project_id,
+            "anchor_date": anchor_dt,
+            "calendar": cal.model_dump(),
+            "tasks": [t.model_dump() for t in tasks],
+        }
+    )
+
     return CPMExport(
         project_id=project_id,
         anchor_date=anchor_dt,
@@ -1799,6 +1809,7 @@ async def export_project_wbs_cpm(
         tasks=tasks,
 
     )
+
 
 @api_router.post("/projects/{project_id}/wbs/nodes", response_model=WBSNode)
 async def create_wbs_node(project_id: str, node: WBSNodeCreate):
