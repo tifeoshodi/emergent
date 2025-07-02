@@ -489,12 +489,25 @@ class GanttData(BaseModel):
 
 
 # WBS models
+class DependencyStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
 class DependencyMetadata(BaseModel):
     predecessor_id: str
     type: str
     confidence: float
     created_by: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    status: DependencyStatus = DependencyStatus.PENDING
+
+
+class DependencyConfirmation(BaseModel):
+    from_task: str
+    to_task: str
+    accept: bool
 
 
 class WBSNode(BaseModel):
@@ -1951,7 +1964,9 @@ async def merge_tasks(
     response_model=List[DependencySuggestion],
 )
 async def get_dependency_suggestions(
-    project_id: str, current_user: User = Depends(get_current_user)
+    project_id: str,
+    min_confidence: float = 0.0,
+    current_user: User = Depends(get_current_user),
 ):
     """Propose task dependencies for the given project."""
     project = await db.projects.find_one({"id": project_id})
@@ -1963,7 +1978,56 @@ async def get_dependency_suggestions(
     ).to_list(1000)
 
     task_objs = [MinimalTask(**t) for t in tasks_data]
-    return propose_dependencies(task_objs)
+    return propose_dependencies(task_objs, min_confidence=min_confidence)
+
+
+@api_router.post("/dependency-suggestions/confirm")
+async def confirm_dependency_suggestions(
+    confirmations: List[DependencyConfirmation],
+    current_user: User = Depends(get_current_user),
+):
+    """Accept or reject proposed dependencies."""
+    projects_to_update: set[str] = set()
+    for conf in confirmations:
+        task = await db.tasks.find_one(
+            {"id": conf.to_task, "discipline": current_user.discipline}
+        )
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        status = (
+            DependencyStatus.ACCEPTED if conf.accept else DependencyStatus.REJECTED
+        )
+
+        meta = DependencyMetadata(
+            predecessor_id=conf.from_task,
+            type="suggestion",
+            confidence=1.0,
+            created_by=current_user.id,
+            status=status,
+        ).dict()
+
+        await db.wbs.update_many(
+            {"task_id": conf.to_task}, {"$push": {"dependency_metadata": meta}}
+        )
+
+        if conf.accept:
+            preds = task.get("predecessor_tasks", [])
+            if conf.from_task not in preds:
+                preds.append(conf.from_task)
+                await db.tasks.update_one(
+                    {"id": conf.to_task}, {"$set": {"predecessor_tasks": preds}}
+                )
+                if task.get("project_id"):
+                    projects_to_update.add(task["project_id"])
+
+    for pid in projects_to_update:
+        try:
+            await _generate_project_wbs(pid, current_user)
+        except Exception as e:
+            logging.error(f"Failed to update WBS for project {pid}: {e}")
+
+    return {"updated": len(confirmations)}
 
 
 # Epic endpoints
