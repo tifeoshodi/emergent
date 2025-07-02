@@ -36,7 +36,9 @@ def _parse_sequence(title: str) -> Optional[tuple[str, int]]:
     return match.group(1), int(match.group(2))
 
 
-def propose_dependencies(tasks: Iterable[MinimalTask]) -> List[DependencySuggestion]:
+def propose_dependencies(
+    tasks: Iterable[MinimalTask], min_confidence: float = 0.0
+) -> List[DependencySuggestion]:
     tasks = list(tasks)
     suggestions: List[DependencySuggestion] = []
 
@@ -92,4 +94,4 @@ def propose_dependencies(tasks: Iterable[MinimalTask]) -> List[DependencySuggest
 
     # Sort suggestions by confidence
     suggestions.sort(key=lambda s: s.confidence, reverse=True)
-    return suggestions
+    return [s for s in suggestions if s.confidence >= min_confidence]
