@@ -94,6 +94,44 @@ def sample_wbs():
     ]
 
 
+def sample_wbs_with_groups():
+    return [
+        {
+            "id": "g1",
+            "project_id": "p1",
+            "task_id": None,
+            "title": "Group 1",
+            "duration_days": 0,
+            "predecessors": [],
+            "early_start": 0,
+            "early_finish": 0,
+            "is_critical": False,
+        },
+        {
+            "id": "n1",
+            "project_id": "p1",
+            "task_id": "t1",
+            "title": "Task 1",
+            "duration_days": 1,
+            "predecessors": [],
+            "early_start": 0,
+            "early_finish": 1,
+            "is_critical": False,
+        },
+        {
+            "id": "n2",
+            "project_id": "p1",
+            "task_id": "t2",
+            "title": "Task 2",
+            "duration_days": 2,
+            "predecessors": ["t1"],
+            "early_start": 1,
+            "early_finish": 3,
+            "is_critical": True,
+        },
+    ]
+
+
 def test_export_invalid_anchor(monkeypatch):
     server = load_server(monkeypatch, sample_wbs())
     user = types.SimpleNamespace(discipline="eng")
@@ -126,3 +164,11 @@ def test_export_success(monkeypatch):
     result = asyncio.run(server.export_project_wbs_cpm("p1", current_user=user))
     assert result.project_id == "p1"
     assert result.tasks[0].task_id == "t1"
+
+
+def test_export_skips_group_nodes(monkeypatch):
+    server = load_server(monkeypatch, sample_wbs_with_groups())
+    user = types.SimpleNamespace(discipline="eng")
+    result = asyncio.run(server.export_project_wbs_cpm("p1", current_user=user))
+    # only tasks with a task_id should be exported
+    assert [t.task_id for t in result.tasks] == ["t1", "t2"]
