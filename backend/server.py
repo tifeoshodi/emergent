@@ -1745,6 +1745,8 @@ async def export_project_wbs_cpm(
     nodes_data = await db.wbs.find({"project_id": project_id}).to_list(1000)
     tasks: List[CPMExportTask] = []
     for nd in nodes_data:
+        if nd.get("task_id") is None:
+            continue  # skip grouping nodes
         tasks.append(
             CPMExportTask(
                 id=nd["id"],
