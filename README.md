@@ -25,3 +25,9 @@ make test
 This is equivalent to running `bash scripts/setup_env.sh` followed by
 `pytest -q`.
 
+## Database notes
+
+The backend enforces a unique index on `wbs` entries using the pair
+`(project_id, task_id)` and automatically removes a task's WBS node when the
+task is deleted.
+
