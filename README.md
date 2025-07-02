@@ -31,3 +31,9 @@ The backend enforces a unique index on `wbs` entries using the pair
 `(project_id, task_id)` and automatically removes a task's WBS node when the
 task is deleted.
 
+## Supabase integration
+
+Set `SUPABASE_URL` and `SUPABASE_KEY` in your environment (or `.env` file) to
+enable the backend's Supabase client. The connection is initialized at startup
+using `create_client` from `supabase_py`.
+
