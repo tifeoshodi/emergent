@@ -84,7 +84,7 @@ async def send_notification(
 ):
     """Store a document-related notification for later retrieval."""
     note = Notification(document_id=document.id, message=message, user_id=user_id)
-    await db.notifications.insert_one(note.dict())
+    await db.notifications.insert_one(note.model_dump())
     logger.info(message)
 
 
@@ -600,7 +600,7 @@ class ProjectResource(BaseModel):
 @api_router.post("/disciplines", response_model=Discipline)
 async def create_discipline(discipline: DisciplineCreate):
     discipline_obj = Discipline(**discipline.dict())
-    await db.disciplines.insert_one(discipline_obj.dict())
+    await db.disciplines.insert_one(discipline_obj.model_dump())
     return discipline_obj
 
 
@@ -666,7 +666,7 @@ async def remove_discipline_member(discipline_name: str, user_id: str):
 async def create_user(user: UserCreate):
     user_dict = user.dict()
     user_obj = User(**user_dict)
-    await db.users.insert_one(user_obj.dict())
+    await db.users.insert_one(user_obj.model_dump())
     if user_obj.discipline:
         await db.disciplines.update_one(
             {"name": user_obj.discipline},
@@ -723,7 +723,7 @@ async def create_project(project: ProjectCreate):
     )  # For now, assume creator is PM
     project_dict["status"] = ProjectStatus.PLANNING
     project_obj = Project(**project_dict)
-    await db.projects.insert_one(project_obj.dict())
+    await db.projects.insert_one(project_obj.model_dump())
     return project_obj
 
 
@@ -781,7 +781,7 @@ async def create_task(task: TaskCreate, current_user: User = Depends(get_current
 
     async with await client.start_session() as session:
         async with session.start_transaction():
-            await db.tasks.insert_one(task_obj.dict(), session=session)
+            await db.tasks.insert_one(task_obj.model_dump(), session=session)
             if task_obj.project_id:
                 try:
                     await _generate_project_wbs(
@@ -1554,7 +1554,7 @@ async def _record_wbs_audit(
         "project_id": project_id,
         "timestamp": datetime.utcnow(),
         "created_by": user_id,
-        "nodes": [n.dict() for n in nodes],
+        "nodes": [n.model_dump() for n in nodes],
         "inference_logs": {"critical_path": critical_path, "metrics": metrics},
     }
     await db.wbs_audit.insert_one(record, session=session)
@@ -1640,7 +1640,7 @@ async def _generate_project_wbs(
             wbs_code=str(g_idx),
             children=None,
         )
-        await db.wbs.insert_one(group_node.dict(), session=session)
+        await db.wbs.insert_one(group_node.model_dump(), session=session)
         nodes.append(group_node)
 
         for t_idx, t in enumerate(group_tasks, start=1):
@@ -1651,7 +1651,7 @@ async def _generate_project_wbs(
                     type="predecessor",
                     confidence=1.0,
                     created_by=current_user.id,
-                ).dict()
+                ).model_dump()
                 for p in t.predecessor_tasks
             ]
             node_data = {
@@ -1671,7 +1671,7 @@ async def _generate_project_wbs(
                 "wbs_group": group_name,
             }
             node = WBSNode(**node_data)
-            await db.wbs.insert_one(node.dict(), session=session)
+            await db.wbs.insert_one(node.model_dump(), session=session)
             nodes.append(node)
 
     await _record_wbs_audit(
@@ -1801,7 +1801,7 @@ async def create_wbs_node(project_id: str, node: WBSNodeCreate):
         }
     )
     new_node = WBSNode(**node_data)
-    await db.wbs.insert_one(new_node.dict())
+    await db.wbs.insert_one(new_node.model_dump())
     return new_node
 
 
@@ -1869,7 +1869,7 @@ async def split_task(
         new_task_dict = task.copy()
         new_task_dict.update({"id": str(uuid.uuid4()), "title": title})
         new_task = Task(**new_task_dict)
-        await db.tasks.insert_one(new_task.dict())
+        await db.tasks.insert_one(new_task.model_dump())
         if node:
             code = f"{node.get('wbs_code', '')}.{idx}"
             if await db.wbs.find_one(
@@ -1892,7 +1892,7 @@ async def split_task(
                 "parent_id": node.get("parent_id"),
                 "wbs_code": code,
             }
-            await db.wbs.insert_one(WBSNode(**node_data).dict())
+            await db.wbs.insert_one(WBSNode(**node_data).model_dump())
         new_tasks.append(new_task)
     return new_tasks
 
@@ -1919,7 +1919,7 @@ async def merge_tasks(
     merged["estimated_hours"] = sum(t.get("estimated_hours") or 0 for t in tasks)
     merged["duration_days"] = sum(t.get("duration_days") or 0 for t in tasks)
     merged_task = Task(**merged)
-    await db.tasks.insert_one(merged_task.dict())
+    await db.tasks.insert_one(merged_task.model_dump())
     await db.tasks.delete_many({"id": {"$in": req.task_ids}})
     nodes = await db.wbs.find({"task_id": {"$in": req.task_ids}}).to_list(1000)
     parent_id = nodes[0].get("parent_id") if nodes else None
@@ -1942,7 +1942,7 @@ async def merge_tasks(
         "parent_id": parent_id,
         "wbs_code": code or str(uuid.uuid4())[:4],
     }
-    await db.wbs.insert_one(WBSNode(**node_data).dict())
+    await db.wbs.insert_one(WBSNode(**node_data).model_dump())
     return merged_task
 
 
@@ -1977,7 +1977,7 @@ async def create_epic(epic: EpicCreate):
     epic_dict = epic.dict()
     epic_dict["created_by"] = "default_user"  # TODO: Get from auth
     epic_obj = Epic(**epic_dict)
-    await db.epics.insert_one(epic_obj.dict())
+    await db.epics.insert_one(epic_obj.model_dump())
     return epic_obj
 
 
@@ -2043,7 +2043,7 @@ async def create_sprint(sprint: SprintCreate):
     sprint_dict = sprint.dict()
     sprint_dict["created_by"] = "default_user"  # TODO: Get from auth
     sprint_obj = Sprint(**sprint_dict)
-    await db.sprints.insert_one(sprint_obj.dict())
+    await db.sprints.insert_one(sprint_obj.model_dump())
     return sprint_obj
 
 
@@ -2302,7 +2302,7 @@ async def upload_document(
         }
 
         document_obj = Document(**document_data)
-        await db.documents.insert_one(document_obj.dict())
+        await db.documents.insert_one(document_obj.model_dump())
 
         return document_obj
 
@@ -2357,7 +2357,7 @@ async def parse_document_endpoint(
                     pass
 
             task_obj = Task(**task_data)
-            await db.tasks.insert_one(task_obj.dict())
+            await db.tasks.insert_one(task_obj.model_dump())
 
             deps = [
                 DependencyMetadata(
@@ -2365,7 +2365,7 @@ async def parse_document_endpoint(
                     type="predecessor",
                     confidence=1.0,
                     created_by=current_user.id,
-                ).dict()
+                ).model_dump()
                 for p in task_obj.predecessor_tasks
             ]
 
@@ -2385,7 +2385,7 @@ async def parse_document_endpoint(
                 code=str(len(created_tasks) + 1),
                 children=None,
             )
-            await db.wbs.insert_one(node.dict())
+            await db.wbs.insert_one(node.model_dump())
             created_tasks.append(task_obj)
             created_nodes.append(node)
 
