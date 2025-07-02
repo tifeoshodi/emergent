@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import axios from "axios";
+import { supabase } from "./lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
@@ -23,9 +24,20 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
 
   const login = async (id) => {
-    const res = await axios.get(`${API}/users/${id}`);
-    axios.defaults.headers.common["X-User-ID"] = res.data.id;
-    setCurrentUser(res.data);
+    if (supabase && process.env.REACT_APP_SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (error) throw error;
+      axios.defaults.headers.common["X-User-ID"] = data.id;
+      setCurrentUser(data);
+    } else {
+      const res = await axios.get(`${API}/users/${id}`);
+      axios.defaults.headers.common["X-User-ID"] = res.data.id;
+      setCurrentUser(res.data);
+    }
   };
 
   const logout = () => {
