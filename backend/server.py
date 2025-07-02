@@ -565,6 +565,7 @@ CPMExport.__module__ = f"{__name__}_models"
 CPMExportTask.model_rebuild(_types_namespace=globals())
 CPMExport.model_rebuild(_types_namespace=globals())
 
+
 class WBSNodeCreate(BaseModel):
     title: str
     wbs_code: str
@@ -1624,7 +1625,6 @@ async def _generate_project_wbs(
 
     nodes = []
 
-
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
 
     for g_idx, (group_name, group_tasks) in enumerate(sorted(grouped.items()), start=1):
@@ -1679,39 +1679,6 @@ async def _generate_project_wbs(
             node = WBSNode(**node_data)
             await db.wbs.insert_one(node.dict(), session=session)
             nodes.append(node)
-
-
-
-    for idx, t in enumerate(tasks, start=1):
-        m = metrics[t.id]
-        deps = [
-            DependencyMetadata(
-                predecessor_id=p,
-                type="predecessor",
-                confidence=1.0,
-                created_by=current_user.id,
-            ).dict()
-            for p in t.predecessor_tasks
-        ]
-        node_data = {
-            "project_id": project_id,
-            "task_id": t.id,
-            "title": t.title,
-            "duration_days": m["duration"],
-            "predecessors": t.predecessor_tasks,
-            "dependency_metadata": deps,
-            "early_start": m["early_start"],
-            "early_finish": m["early_finish"],
-            "is_critical": m["is_critical"],
-            "created_by": current_user.id,
-            "parent_id": None,
-            "wbs_code": str(idx),
-            "code": str(idx),
-            "children": None,
-        }
-        node = WBSNode(**node_data)
-        await db.wbs.insert_one(node.dict(), session=session)
-        nodes.append(node)
 
     await _record_wbs_audit(
         project_id,
