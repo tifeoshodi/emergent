@@ -62,6 +62,13 @@ db = client[
 ]  # Create the main app without a prefix
 app = FastAPI()
 
+
+# Ensure WBS nodes are unique per project/task
+@app.on_event("startup")
+async def ensure_wbs_index() -> None:
+    await db.wbs.create_index([("project_id", 1), ("task_id", 1)], unique=True)
+
+
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
@@ -796,14 +803,9 @@ async def create_task(task: TaskCreate, current_user: User = Depends(get_current
         async with session.start_transaction():
             await db.tasks.insert_one(task_obj.model_dump(), session=session)
             if task_obj.project_id:
-                try:
-                    await _generate_project_wbs(
-                        task_obj.project_id, current_user, session=session
-                    )
-                except Exception as e:
-                    logging.error(
-                        f"Failed to update WBS for project {task_obj.project_id}: {e}"
-                    )
+                await _generate_project_wbs(
+                    task_obj.project_id, current_user, session=session
+                )
     return task_obj
 
 
@@ -888,6 +890,7 @@ async def delete_task(task_id: str, current_user: User = Depends(get_current_use
             result = await db.tasks.delete_one({"id": task_id}, session=session)
             if result.deleted_count == 0:
                 raise HTTPException(status_code=404, detail="Task not found")
+            await db.wbs.delete_one({"task_id": task_id}, session=session)
             if task.get("project_id"):
                 try:
                     await _generate_project_wbs(
@@ -2572,7 +2575,9 @@ async def update_document(
     if not document or document.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    update_data = {k: v for k, v in document_update.model_dump().items() if v is not None}
+    update_data = {
+        k: v for k, v in document_update.model_dump().items() if v is not None
+    }
     update_data["updated_at"] = datetime.utcnow()
 
     await db.documents.update_one({"id": document_id}, {"$set": update_data})
