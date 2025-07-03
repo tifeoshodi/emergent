@@ -12,7 +12,7 @@ import WBSGenerator from "./WBSGenerator";
 // Import PMFusion Three-Phase Workflow Components
 import PMFusionApp from "./PMFusionApp";
 
-const currentUser = { role: "scheduler" };
+
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -2551,6 +2551,8 @@ const DocumentControlCenter = () => {
   );
 };
 const Navigation = ({ currentPage }) => {
+  const { currentUser } = useContext(AuthContext);
+  
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -2600,7 +2602,7 @@ const Navigation = ({ currentPage }) => {
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
               </Link>
-              {currentUser.role === 'scheduler' && (
+              {currentUser && currentUser.role === 'scheduler' && (
                 <Link
                   to="/wbs"
                   className={`nav-item ${currentPage === 'wbs' ? 'nav-item-active' : 'nav-item-inactive'}`}
@@ -2618,9 +2620,10 @@ const Navigation = ({ currentPage }) => {
               </Link>
               <Link
                 to="/pmfusion"
-                className={`nav-item border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-md px-3 py-2 hover:from-blue-600 hover:to-purple-700 transition-all duration-200 ${currentPage === 'pmfusion' ? 'shadow-lg' : ''}`}
+                className={`nav-item ${currentPage === 'pmfusion' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                ⚡ PMFusion Workflow
+                <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                PMFusion Workflow
               </Link>
             </div>
           </div>

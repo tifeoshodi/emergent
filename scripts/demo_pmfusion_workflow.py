@@ -2,98 +2,125 @@
 """
 PMFusion Three-Phase Workflow Demonstration
 Shows the complete end-to-end workflow from project creation to document control
+
+To run this script, set the PYTHONPATH environment variable to include the project root:
+    Windows: set PYTHONPATH=%cd% && python scripts/demo_pmfusion_workflow.py
+    Linux/Mac: PYTHONPATH=. python scripts/demo_pmfusion_workflow.py
+
+Or run from the project root directory:
+    python -m scripts.demo_pmfusion_workflow
 """
 
 import asyncio
-import sys
 import os
+import sys
 import uuid
-from pathlib import Path
 from datetime import datetime, timedelta
 import json
 from typing import Any, Dict, List, Optional, Union
 
-# Add backend to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Import functions from the backend package
+try:
+    from backend.external_integrations.supabase_client import (
+        create_organization,
+        create_user,
+        create_project,
+        create_discipline,
+        get_discipline_kanban,
+        insert,
+        select,
+        update
+    )
+    print("✅ Successfully imported backend functions")
+    USING_REAL_BACKEND = True
+except ImportError as e:
+    print(f"⚠️  Could not import backend functions: {e}")
+    print("📌 To fix this, run the script with:")
+    print("   Windows: set PYTHONPATH=%cd% && python scripts/demo_pmfusion_workflow.py")
+    print("   Linux/Mac: PYTHONPATH=. python scripts/demo_pmfusion_workflow.py")
+    print("🔄 Falling back to mock functions for demonstration...")
+    USING_REAL_BACKEND = False
+    
+    # Fallback mock functions for demonstration when backend is not available
+    def insert(table: str, data: Dict[str, Any], jwt: Optional[str] = None) -> Any:
+        """Mock insert data into table"""
+        if 'id' not in data:
+            data['id'] = str(uuid.uuid4())
+        print(f"[MOCK] Inserting into {table}: {data}")
+        return [data]
 
-# Mock Supabase functions - used instead of importing from supabase_client
-# since we don't have actual Supabase credentials
+    def select(table: str, query: Optional[Dict[str, Any]] = None, jwt: Optional[str] = None) -> Any:
+        """Mock select data from table"""
+        print(f"[MOCK] Selecting from {table}")
+        if table == 'orgs':
+            return [{'id': str(uuid.uuid4()), 'name': 'Demo Org'}]
+        return []
 
-def insert(table: str, data: Dict[str, Any], jwt: Optional[str] = None) -> Any:
-    """Mock insert data into table"""
-    if 'id' not in data:
-        data['id'] = str(uuid.uuid4())
-    print(f"[MOCK] Inserting into {table}: {data}")
-    return [data]
+    def update(table: str, query: Dict[str, Any], data: Dict[str, Any], jwt: Optional[str] = None) -> Any:
+        """Mock update data in table"""
+        print(f"[MOCK] Updating {table} with {data}")
+        return [data]
 
-def select(table: str, query: Optional[Dict[str, Any]] = None, jwt: Optional[str] = None) -> Any:
-    """Mock select data from table"""
-    print(f"[MOCK] Selecting from {table}")
-    if table == 'orgs':
-        return [{'id': str(uuid.uuid4()), 'name': 'Demo Org'}]
-    return []
+    def create_organization(name: str) -> Dict[str, Any]:
+        """Create a new organization"""
+        org_data = {"name": name, "id": str(uuid.uuid4())}
+        print(f"[MOCK] Creating organization: {name}")
+        return org_data
 
-def update(table: str, query: Dict[str, Any], data: Dict[str, Any], jwt: Optional[str] = None) -> Any:
-    """Mock update data in table"""
-    print(f"[MOCK] Updating {table} with {data}")
-    return [data]
+    def create_user(org_id: str, email: str, full_name: str, role: str, discipline_id: Optional[str] = None) -> Dict[str, Any]:
+        """Create a new user"""
+        user_data = {
+            "id": str(uuid.uuid4()),
+            "org_id": org_id,
+            "email": email,
+            "full_name": full_name,
+            "role": role,
+            "discipline_id": discipline_id
+        }
+        print(f"[MOCK] Creating user: {full_name}")
+        return user_data
 
-def create_organization(name: str) -> Dict[str, Any]:
-    """Create a new organization"""
-    org_data = {"name": name, "id": str(uuid.uuid4())}
-    print(f"[MOCK] Creating organization: {name}")
-    return org_data
+    def create_project(org_id: str, name: str, owner_id: str, **kwargs) -> Dict[str, Any]:
+        """Create a new project"""
+        project_data = {
+            "id": str(uuid.uuid4()),
+            "org_id": org_id,
+            "name": name,
+            "owner_id": owner_id,
+            **kwargs
+        }
+        print(f"[MOCK] Creating project: {name}")
+        return project_data
 
-def create_user(org_id: str, email: str, full_name: str, role: str, discipline_id: Optional[str] = None) -> Dict[str, Any]:
-    """Create a new user"""
-    user_data = {
-        "id": str(uuid.uuid4()),
-        "org_id": org_id,
-        "email": email,
-        "full_name": full_name,
-        "role": role,
-        "discipline_id": discipline_id
-    }
-    print(f"[MOCK] Creating user: {full_name}")
-    return user_data
+    def create_discipline(org_id: str, name: str, code: str, color_hex: str = "#6366f1") -> Dict[str, Any]:
+        """Create a new discipline"""
+        # Validate color_hex format
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color_hex):
+            raise ValueError(f"Invalid color_hex format: {color_hex}")
+        discipline_data = {
+            "id": str(uuid.uuid4()),
+            "org_id": org_id,
+            "name": name,
+            "code": code,
+            "color_hex": color_hex
+        }
+        print(f"[MOCK] Creating discipline: {name}")
+        return discipline_data
 
-def create_project(org_id: str, name: str, owner_id: str, **kwargs) -> Dict[str, Any]:
-    """Create a new project"""
-    project_data = {
-        "id": str(uuid.uuid4()),
-        "org_id": org_id,
-        "name": name,
-        "owner_id": owner_id,
-        **kwargs
-    }
-    print(f"[MOCK] Creating project: {name}")
-    return project_data
-
-def create_discipline(org_id: str, name: str, code: str, color_hex: str = "#6366f1") -> Dict[str, Any]:
-    """Create a new discipline"""
-    discipline_data = {
-        "id": str(uuid.uuid4()),
-        "org_id": org_id,
-        "name": name,
-        "code": code,
-        "color_hex": color_hex
-    }
-    print(f"[MOCK] Creating discipline: {name}")
-    return discipline_data
-
-def get_discipline_kanban(discipline_id: str, project_id: str, jwt: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
-    """Mock kanban board data for a discipline"""
-    print(f"[MOCK] Getting kanban for discipline: {discipline_id}")
-    # Return mock kanban structure
-    return {
-        "backlog": [{"id": str(uuid.uuid4()), "title": "Mock Task 1", "status": "backlog"}],
-        "todo": [{"id": str(uuid.uuid4()), "title": "Mock Task 2", "status": "todo"}],
-        "in_progress": [],
-        "review_dic": [],
-        "review_idc": [],
-        "review_dcc": [],
-        "done": []
-    }
+    def get_discipline_kanban(discipline_id: str, project_id: str, jwt: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+        """Mock kanban board data for a discipline"""
+        print(f"[MOCK] Getting kanban for discipline: {discipline_id}")
+        # Return mock kanban structure
+        return {
+            "backlog": [{"id": str(uuid.uuid4()), "title": "Mock Task 1", "status": "backlog"}],
+            "todo": [{"id": str(uuid.uuid4()), "title": "Mock Task 2", "status": "todo"}],
+            "in_progress": [],
+            "review_dic": [],
+            "review_idc": [],
+            "review_dcc": [],
+            "done": []
+        }
 
 def print_banner(text, char="="):
     """Print a formatted banner"""
@@ -121,17 +148,8 @@ def print_workflow_stage(stage, description):
     print(f"\n📋 {stage}")
     print(f"   {description}")
 
-async def demonstrate_three_phase_workflow():
-    """Demonstrate the complete three-phase workflow"""
-    
-    print_banner("PMFusion Three-Phase Workflow Demonstration")
-    print_info("This demo shows how the three-phase project management workflow operates")
-    print_info("from project creation through teams execution to document control.")
-    
-    # ========================================================================
-    # PHASE 1: PROJECT CREATION
-    # ========================================================================
-    
+async def demonstrate_project_creation_phase():
+    """Demonstrate Phase 1: Project Creation"""
     print_banner("PHASE 1: PROJECT CREATION", "=")
     print_workflow_stage("PHASE 1", "Scheduler creates project using CTR/MDR documents")
     
@@ -150,7 +168,7 @@ async def demonstrate_three_phase_workflow():
             print_info(f"Using existing organization: {org['name']}")
         else:
             print("❌ No organizations available")
-            return
+            return None, None, None, None
     
     print_step(2, "Create Engineering Disciplines", "Setting up discipline teams")
     disciplines = []
@@ -191,7 +209,11 @@ async def demonstrate_three_phase_workflow():
     
     print_step(4, "Create Project via 4-Step Wizard", "Scheduler creates new project")
     try:
-        scheduler = next(u for u in users if u['role'] == 'scheduler')
+        scheduler = next((u for u in users if u['role'] == 'scheduler'), None)
+        if not scheduler:
+            print(f"❌ No scheduler user found in users list")
+            return None, None, None, None
+            
         project_data = {
             "name": "Catalytic Cracker Unit Modernization",
             "code": "CCU-MOD-2024",
@@ -207,13 +229,19 @@ async def demonstrate_three_phase_workflow():
         print_info(f"Project Code: {project['code']}")
         print_info(f"Duration: {project['start_date']} to {project['end_date']}")
         project_id = project['id']
+        
+        return org_id, disciplines, users, project_id
+        
     except Exception as e:
         print(f"❌ Project creation failed: {e}")
+        return None, None, None, None
+
+
+async def demonstrate_teams_execution_phase(org_id, disciplines, users, project_id):
+    """Demonstrate Phase 2: Teams Execution"""
+    if not all([org_id, disciplines, users, project_id]):
+        print("❌ Cannot proceed with Teams Execution phase - missing required data")
         return
-    
-    # ========================================================================
-    # PHASE 2: TEAMS EXECUTION
-    # ========================================================================
     
     print_banner("PHASE 2: TEAMS EXECUTION", "=")
     print_workflow_stage("PHASE 2", "Discipline teams execute tasks through kanban workflow")
@@ -284,11 +312,21 @@ async def demonstrate_three_phase_workflow():
     ]
     
     tasks_created = []
+    task_skipped = []
     for task_template in task_templates:
         try:
             # Find discipline and assignee
-            discipline = next(d for d in disciplines if d['code'] == task_template['discipline'])
-            assignee = next(u for u in users if u['discipline_id'] == discipline['id'] and u['role'] == 'team_member')
+            discipline = next((d for d in disciplines if d['code'] == task_template['discipline']), None)
+            if not discipline:
+                print(f"❌ No discipline found with code '{task_template['discipline']}' for task '{task_template['title']}'")
+                task_skipped.append(task_template['title'])
+                continue
+                
+            assignee = next((u for u in users if u['discipline_id'] == discipline['id'] and u['role'] == 'team_member'), None)
+            if not assignee:
+                print(f"❌ No team member found for discipline '{discipline['name']}' for task '{task_template['title']}'")
+                task_skipped.append(task_template['title'])
+                continue
             
             task_data = {
                 'project_id': project_id,
@@ -300,8 +338,8 @@ async def demonstrate_three_phase_workflow():
                 'estimated_hours': task_template['estimated_hours'],
                 'wbs_code': task_template['wbs_code'],
                 'status': 'backlog',
-                'created_at': datetime.now().isoformat(),
-                'due_date': (datetime.now() + timedelta(days=30)).date().isoformat()
+                'created_at': datetime.utcnow().isoformat(),
+                'due_date': (datetime.utcnow() + timedelta(days=30)).date().isoformat()
             }
             
             result = insert('tasks', task_data)
@@ -311,7 +349,10 @@ async def demonstrate_three_phase_workflow():
             
         except Exception as e:
             print(f"❌ Failed to create task {task_template['title']}: {e}")
-    
+
+    if task_skipped:
+        print_info(f"\nSkipped tasks due to missing assignees: {', '.join(task_skipped)}")
+
     print_step(6, "Demonstrate Kanban Workflow", "Tasks move through workflow stages")
     
     # Simulate task progression through workflow stages
@@ -338,10 +379,13 @@ async def demonstrate_three_phase_workflow():
                 print(f"   • {status.upper()}: {len(task_list)} tasks")
         except Exception as e:
             print(f"   • Error loading kanban data: {e}")
-    
-    # ========================================================================
-    # PHASE 3: DOCUMENT CONTROL
-    # ========================================================================
+
+
+async def demonstrate_document_control_phase(disciplines, project_id):
+    """Demonstrate Phase 3: Document Control"""
+    if not all([disciplines, project_id]):
+        print("❌ Cannot proceed with Document Control phase - missing required data")
+        return
     
     print_banner("PHASE 3: DOCUMENT CONTROL", "=")
     print_workflow_stage("PHASE 3", "DCC officers manage document lifecycle and client approvals")
@@ -390,8 +434,8 @@ async def demonstrate_three_phase_workflow():
         try:
             doc_data = {
                 **doc_template,
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
             }
             
             result = insert('documents', doc_data)
@@ -430,6 +474,21 @@ async def demonstrate_three_phase_workflow():
             
     except Exception as e:
         print(f"❌ Error loading document summary: {e}")
+
+
+async def demonstrate_three_phase_workflow():
+    """Demonstrate the complete three-phase workflow"""
+    
+    print_banner("PMFusion Three-Phase Workflow Demonstration")
+    print_info("This demo shows how the three-phase project management workflow operates")
+    print_info("from project creation through teams execution to document control.")
+    
+    # Execute the three phases sequentially
+    org_id, disciplines, users, project_id = await demonstrate_project_creation_phase()
+    
+    if org_id and disciplines and users and project_id:
+        await demonstrate_teams_execution_phase(org_id, disciplines, users, project_id)
+        await demonstrate_document_control_phase(disciplines, project_id)
     
     # ========================================================================
     # WORKFLOW COMPLETION
@@ -462,4 +521,4 @@ if __name__ == "__main__":
         asyncio.run(demonstrate_three_phase_workflow())
     except Exception as e:
         print(f"❌ Demo failed: {e}")
-        sys.exit(1) 
+        raise 

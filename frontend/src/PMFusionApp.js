@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from './lib/api';
+import { supabase } from './lib/supabaseClient';
 import ProjectCreationWizard from './ProjectCreationWizard';
 import KanbanBoard from './KanbanBoard';
 
@@ -14,18 +15,266 @@ const PMFusionApp = () => {
   const [apiStatus, setApiStatus] = useState('checking');
   const [error, setError] = useState(null);
 
-  // Mock current user - in production this would come from authentication
-  const [currentUser] = useState({
-    id: 'demo-user-id',
-    name: 'Demo User',
-    role: 'scheduler',
-    discipline_id: null,
-    email: 'demo@petromax.com'
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Login form state
+  const [loginForm, setLoginForm] = useState({
+    email: '',
+    password: ''
   });
+  const [loginError, setLoginError] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
-    initializeApp();
+    initializeAuth();
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      initializeApp();
+    }
+  }, [currentUser]);
+
+  const initializeAuth = async () => {
+    try {
+      // Get initial session
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Error getting session:', error);
+      } else if (session?.user) {
+        await setUserFromSession(session);
+      }
+
+      // Listen for auth state changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('Auth state changed:', event, session?.user?.email);
+          
+          if (event === 'SIGNED_IN' && session?.user) {
+            await setUserFromSession(session);
+          } else if (event === 'SIGNED_OUT') {
+            setCurrentUser(null);
+            setProjects([]);
+            setDisciplines([]);
+            setSelectedProject(null);
+            setSelectedDiscipline(null);
+          }
+        }
+      );
+
+      return () => {
+        subscription?.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const setUserFromSession = async (session) => {
+    try {
+      // Try to get user profile from our users table
+      const { data: userProfile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error) {
+        // Only log if it's not a "no rows" error
+        const isNoRowsError = error.code === 'PGRST116' || error.message?.includes('No rows found');
+        if (!isNoRowsError) {
+          console.error('Error fetching user profile:', error);
+        }
+      }
+      // Set user data combining auth and profile info
+      const userData = {
+        id: session.user.id,
+        email: session.user.email,
+        name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.email,
+        role: userProfile?.role || 'team_member',
+        discipline_id: userProfile?.discipline_id || null,
+        org_id: userProfile?.org_id || null,
+        ...userProfile
+      };
+
+      setCurrentUser(userData);
+    } catch (error) {
+      console.error('Error setting user from session:', error);
+      // Fallback to basic user data from auth
+      setCurrentUser({
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.email,
+        role: 'team_member',
+        discipline_id: null,
+        org_id: null
+      });
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginForm.email,
+        password: loginForm.password,
+      });
+
+      if (error) {
+        setLoginError(error.message);
+      } else {
+        setShowLogin(false);
+        setLoginForm({ email: '', password: '' });
+      }
+    } catch (error) {
+      setLoginError('An unexpected error occurred. Please try again.');
+      console.error('Login error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: loginForm.email,
+        password: loginForm.password,
+        options: {
+          data: {
+            full_name: loginForm.email.split('@')[0] // Simple default name
+          }
+        }
+      });
+
+      if (error) {
+        setLoginError(error.message);
+      } else {
+        setLoginError(null);
+        alert('Registration successful! Please check your email to confirm your account.');
+        setIsRegistering(false);
+      }
+    } catch (error) {
+      setLoginError('An unexpected error occurred. Please try again.');
+      console.error('Register error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const LoginForm = () => (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            {isRegistering ? 'Create your account' : 'Sign in to PMFusion'}
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Three-Phase Project Management Workflow
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={isRegistering ? handleRegister : handleLogin}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">Email address</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+                value={loginForm.email}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {loginError && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="text-sm text-red-700">{loginError}</div>
+            </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : (isRegistering ? 'Create Account' : 'Sign In')}
+            </button>
+          </div>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-blue-600 hover:text-blue-500 text-sm"
+            >
+              {isRegistering ? 'Already have an account? Sign in' : 'Need an account? Register'}
+            </button>
+          </div>
+
+          <div className="text-center">
+          <button
+            type="button"
+            onClick={() => {
+              if (process.env.REACT_APP_ENABLE_DEMO === 'true') {
+                setLoginForm({
+                  email: process.env.REACT_APP_DEMO_EMAIL || '',
+                  password: process.env.REACT_APP_DEMO_PASSWORD || '',
+                });
+                setLoginError('Demo credentials loaded - click Sign In');
+              }
+            }}
+            className="text-gray-500 hover:text-gray-700 text-xs"
+          >
+            Load Demo Credentials
+          </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 
   const initializeApp = async () => {
     setError(null);
@@ -161,10 +410,10 @@ const PMFusionApp = () => {
           {/* User Info and Actions */}
           <div className="flex items-center space-x-4">
             <div className="text-sm text-gray-700">
-              {currentUser.name} ({currentUser.role})
+              {currentUser?.name} ({currentUser?.role})
             </div>
             
-            {currentUser.role === 'scheduler' && (
+            {currentUser?.role === 'scheduler' && (
               <button
                 onClick={() => setShowProjectWizard(true)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -172,6 +421,13 @@ const PMFusionApp = () => {
                 Create Project
               </button>
             )}
+            
+            <button
+              onClick={handleLogout}
+              className="bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition-colors"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </div>
@@ -274,7 +530,7 @@ const PMFusionApp = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
-        {currentUser.role === 'scheduler' && (
+        {currentUser?.role === 'scheduler' && (
           <button
             onClick={() => setShowProjectWizard(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
@@ -314,7 +570,7 @@ const PMFusionApp = () => {
         {projects.length === 0 && (
           <div className="col-span-full text-center py-12">
             <p className="text-gray-500">No projects found</p>
-            {currentUser.role === 'scheduler' && (
+            {currentUser?.role === 'scheduler' && (
               <button
                 onClick={() => setShowProjectWizard(true)}
                 className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
@@ -414,6 +670,24 @@ const PMFusionApp = () => {
     </div>
   );
 
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login form if not authenticated
+  if (!currentUser) {
+    return <LoginForm />;
+  }
+
+  // Show loading for app data
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -425,6 +699,7 @@ const PMFusionApp = () => {
     );
   }
 
+  // Show main authenticated app
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />

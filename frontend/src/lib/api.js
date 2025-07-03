@@ -1,7 +1,54 @@
 // PMFusion Three-Phase Workflow API Client
 import { supabase } from './supabaseClient';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v2';
+// URL validation function
+const validateApiUrl = (url) => {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  
+  try {
+    const urlObj = new URL(url);
+    // Check if it's HTTP or HTTPS protocol
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch (error) {
+    return false;
+  }
+};
+
+// Get and validate API base URL
+const getValidatedApiUrl = () => {
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  const defaultUrl = 'http://localhost:8000/api/v2';
+  
+  // First, try the environment variable
+  if (envUrl && validateApiUrl(envUrl)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Using API URL from environment:', envUrl);
+      }
+    return envUrl;
+  }
+  
+  // If environment URL is invalid, log warning and check default
+  if (envUrl && !validateApiUrl(envUrl)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Invalid API URL in environment variable REACT_APP_BACKEND_URL:', envUrl);
+      }
+  }
+  
+  // Validate the default URL
+  if (validateApiUrl(defaultUrl)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Using default API URL:', defaultUrl);
+      }
+    return defaultUrl;
+  }
+  
+  // If even the default is invalid (should never happen), throw error
+  throw new Error('No valid API URL available. Please check REACT_APP_BACKEND_URL environment variable.');
+};
+
+const API_BASE_URL = getValidatedApiUrl();
 const API_TIMEOUT_MS = 10000; // 10 second timeout
 
 class PMFusionAPI {
@@ -15,13 +62,13 @@ class PMFusionAPI {
       const { data: { session } } = await supabase.auth.getSession();
       return {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token || 'demo-token'}`
+        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : undefined
       };
     } catch (error) {
       console.error('Error getting auth headers:', error);
       return {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer demo-token'
+        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : undefined
       };
     }
   }
@@ -49,8 +96,15 @@ class PMFusionAPI {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error: ${response.status} - ${response.statusText} - ${errorText}`);
+        let errorMessage = `API Error: ${response.status} - ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage += ` - ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
+        } catch {
+          const errorText = await response.text();
+          errorMessage += ` - ${errorText}`;
+        }
+          throw new Error(errorMessage);      
       }
       
       return await response.json();

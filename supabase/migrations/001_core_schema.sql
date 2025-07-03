@@ -51,7 +51,7 @@ create type project_status as enum (
 );
 
 -- CPM calculation status
-create type cmp_status as enum (
+create type cpm_status as enum (
   'pending',
   'running',
   'completed',
@@ -100,13 +100,24 @@ alter table projects add column if not exists client_name text;
 alter table projects add column if not exists start_date date;
 alter table projects add column if not exists end_date date;
 alter table projects add column if not exists status project_status default 'planning';
-alter table projects add column if not exists cmp_status cmp_status default 'pending';
+alter table projects add column if not exists cpm_status cpm_status default 'pending';
 alter table projects add column if not exists updated_at timestamptz default now();
 alter table projects add column if not exists owner_id uuid;
 
--- Add foreign key constraints after owner_id column is created
-alter table projects drop constraint if exists projects_owner_id_fkey;
-alter table projects add constraint projects_owner_id_fkey foreign key (owner_id) references users(id);
+-- Only add the constraint if it doesn't already exist
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint 
+    where conname = 'projects_owner_id_fkey'
+  ) then
+    alter table projects add constraint projects_owner_id_fkey 
+      foreign key (owner_id) references users(id);
+  end if;
+end $$;
+
+-- Add unique constraint on project code to prevent duplicates
+alter table projects add constraint projects_code_key unique (code);
 
 -- Work Breakdown Structure nodes
 create table wbs_nodes (
@@ -123,8 +134,12 @@ create table wbs_nodes (
   created_at      timestamptz default now()
 );
 
+-- Add unique constraint for WBS node sequence ordering within project and parent
+create unique index if not exists idx_wbs_nodes_sequence_unique 
+  on wbs_nodes(project_id, coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), sequence);
+
 -- Critical Path Method links (dependencies)
-create table cmp_links (
+create table cpm_links (
   id              uuid primary key default uuid_generate_v4(),
   project_id      uuid not null references projects(id) on delete cascade,
   predecessor_id  uuid not null references wbs_nodes(id),
@@ -240,18 +255,18 @@ create table notifications (
 -- ============================================================================
 
 -- Core lookup indexes
-create index idx_users_org_id on users(org_id);
-create index idx_users_discipline_id on users(discipline_id);
-create index idx_projects_org_id on projects(org_id);
-create index idx_wbs_nodes_project_id on wbs_nodes(project_id);
-create index idx_tasks_project_discipline_status on tasks(project_id, discipline_id, status);
-create index idx_documents_task_id on documents(task_id);
-create index idx_activity_log_org_id on activity_log(org_id);
-create index idx_notifications_user_id on notifications(user_id);
+create index if not exists idx_users_org_id on users(org_id);
+create index if not exists idx_users_discipline_id on users(discipline_id);
+create index if not exists idx_projects_org_id on projects(org_id);
+create index if not exists idx_wbs_nodes_project_id on wbs_nodes(project_id);
+create index if not exists idx_tasks_project_discipline_status on tasks(project_id, discipline_id, status);
+create index if not exists idx_documents_task_id on documents(task_id);
+create index if not exists idx_activity_log_org_id on activity_log(org_id);
+create index if not exists idx_notifications_user_id on notifications(user_id);
 
 -- Unique constraints
-create unique index idx_wbs_nodes_project_code on wbs_nodes(project_id, code);
-create unique index idx_documents_storage_path on documents(storage_path);
+create unique index if not exists idx_wbs_nodes_project_code on wbs_nodes(project_id, code);
+create unique index if not exists idx_documents_storage_path on documents(storage_path);
 
 -- ============================================================================
 -- 8. TRIGGERS FOR AUTOMATED TIMESTAMPS
@@ -259,13 +274,12 @@ create unique index idx_documents_storage_path on documents(storage_path);
 
 -- Function to update updated_at timestamp
 create or replace function update_updated_at_column()
-returns trigger as $$
+returns trigger as $
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
-
+$ language plpgsql;
 -- Apply to relevant tables
 create trigger update_users_updated_at before update on users
   for each row execute function update_updated_at_column();
