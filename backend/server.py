@@ -25,7 +25,17 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from backend.external_integrations.supabase_client import supabase, insert, select
+
+# Fix the supabase client import - import directly from external_integrations directory
+try:
+    from backend.external_integrations.supabase_client import supabase, insert, select
+except ImportError:
+    from external_integrations.supabase_client import supabase, insert, select
+
+try:
+    from backend import api_routes  # Import new workflow API routes
+except ImportError:
+    from . import api_routes  # Relative import fallback
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from collections import deque
@@ -72,6 +82,9 @@ async def ensure_wbs_index() -> None:
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# Include the new PMFusion workflow routes
+app.include_router(api_routes.router)
 
 
 # Root endpoint for API health check

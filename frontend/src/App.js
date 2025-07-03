@@ -9,10 +9,10 @@ import { supabase } from "./lib/supabaseClient";
 import Components from "./Components";
 import WBSGenerator from "./WBSGenerator";
 
+// Import PMFusion Three-Phase Workflow Components
+import PMFusionApp from "./PMFusionApp";
+
 const currentUser = { role: "scheduler" };
-
-import Components from "./Components";
-
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -2616,6 +2616,12 @@ const Navigation = ({ currentPage }) => {
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Control Center
               </Link>
+              <Link
+                to="/pmfusion"
+                className={`nav-item border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-md px-3 py-2 hover:from-blue-600 hover:to-purple-700 transition-all duration-200 ${currentPage === 'pmfusion' ? 'shadow-lg' : ''}`}
+              >
+                ⚡ PMFusion Workflow
+              </Link>
             </div>
           </div>
           <div className="flex items-center">
@@ -2687,12 +2693,15 @@ function App() {
             <main><WBSGenerator /></main>
           </>
         } />
+        <Route path="/pmfusion" element={
+          <>
+            <Navigation currentPage="pmfusion" />
+            <main><PMFusionApp /></main>
+          </>
+        } />
       </Routes>
     </div>
   );
 }
 
 export default App;
-
-// Named exports for context and provider
-export { AuthContext, AuthProvider };
