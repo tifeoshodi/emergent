@@ -26,6 +26,11 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
+  // Backend integration state
+  const [projectId, setProjectId] = useState(null);
+  const [wbsTree, setWbsTree] = useState([]);
+  const [wbsLoading, setWbsLoading] = useState(false);
+
   // Accepted file types
   const acceptedFileTypes = [
     'application/pdf',
@@ -278,12 +283,65 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
     return true;
   };
 
-  const nextStep = () => {
-    // Validate form on Step 1 before proceeding
-    if (currentStep === 1 && !validateForm()) {
-      return;
+  const createProjectIfNeeded = async () => {
+    if (projectId) return;
+
+    const payload = {
+      name: formData.name.trim(),
+      code: formData.code ? formData.code.trim() : '',
+      description: formData.description ? formData.description.trim() : '',
+      client_name: formData.client_name ? formData.client_name.trim() : '',
+      start_date: formData.start_date,
+      end_date: formData.end_date,
+      status: 'planning'
+    };
+
+    setLoading(true);
+    try {
+      const res = await pmfusionAPI.createProject(payload);
+      const created = res.data || res;
+      setProjectId(created.id);
+    } catch (err) {
+      setError('Failed to save project information.');
+      throw err;
+    } finally {
+      setLoading(false);
     }
-    
+  };
+
+  const generateWBS = async () => {
+    if (!projectId) return;
+    setWbsLoading(true);
+    try {
+      await pmfusionAPI.generateProjectWBS(projectId);
+      const tree = await pmfusionAPI.getProjectWBS(projectId);
+      setWbsTree(tree);
+    } catch (err) {
+      setError('Failed to generate WBS preview.');
+      throw err;
+    } finally {
+      setWbsLoading(false);
+    }
+  };
+
+  const nextStep = async () => {
+    if (currentStep === 1) {
+      if (!validateForm()) return;
+      try {
+        await createProjectIfNeeded();
+      } catch {
+        return;
+      }
+    }
+
+    if (currentStep === 2) {
+      try {
+        await generateWBS();
+      } catch {
+        return;
+      }
+    }
+
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
@@ -320,9 +378,14 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
         }))
       };
       
-      // Make real API call to create project
-      console.log('Creating project with payload:', projectPayload);
-      const response = await pmfusionAPI.createProject(projectPayload);
+      let response;
+      if (projectId) {
+        console.log('Updating project with payload:', projectPayload);
+        response = await pmfusionAPI.updateProject(projectId, projectPayload);
+      } else {
+        console.log('Creating project with payload:', projectPayload);
+        response = await pmfusionAPI.createProject(projectPayload);
+      }
       
       // Handle successful creation
       if (response && response.data) {
@@ -555,28 +618,47 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
     </div>
   );
 
+  const renderWBSNode = (node, level = 0) => (
+    <div
+      key={node.id}
+      className="flex items-center text-sm"
+      style={{ paddingLeft: `${level * 1}rem` }}
+    >
+      <span className="font-medium text-gray-700 w-24">{node.wbs_code}</span>
+      <span className="text-gray-900">{node.title}</span>
+      <span className="ml-auto text-gray-500">{Math.round(node.duration_days)} days</span>
+    </div>
+  );
+
+  const renderWBSTree = (nodes, level = 0) => (
+    <>
+      {nodes.map(node => (
+        <React.Fragment key={node.id}>
+          {renderWBSNode(node, level)}
+          {node.children && node.children.length > 0 && (
+            <div className="pl-4 space-y-1">
+              {renderWBSTree(node.children, level + 1)}
+            </div>
+          )}
+        </React.Fragment>
+      ))}
+    </>
+  );
+
   const renderStep3 = () => (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">WBS Preview</h3>
       <p className="text-sm text-gray-600 mb-4">Review the generated Work Breakdown Structure</p>
       <div className="bg-gray-50 rounded-lg p-4">
-        <div className="space-y-3">
-          <div className="flex items-center text-sm">
-            <span className="font-medium text-gray-700 w-24">1.0</span>
-            <span className="text-gray-900">Engineering Design</span>
-            <span className="ml-auto text-gray-500">120 days</span>
+        {wbsLoading ? (
+          <p className="text-sm text-gray-600">Generating WBS...</p>
+        ) : (
+          <div className="space-y-1">
+            {wbsTree && wbsTree.length > 0 ? renderWBSTree(wbsTree) : (
+              <p className="text-sm text-gray-500">No WBS data available.</p>
+            )}
           </div>
-          <div className="flex items-center text-sm pl-4">
-            <span className="font-medium text-gray-700 w-20">1.1</span>
-            <span className="text-gray-900">Process Engineering Package</span>
-            <span className="ml-auto text-gray-500">90 days</span>
-          </div>
-          <div className="flex items-center text-sm pl-8">
-            <span className="font-medium text-gray-700 w-16">1.1.1</span>
-            <span className="text-gray-900">Process Flow Diagrams</span>
-            <span className="ml-auto text-gray-500">30 days</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -668,7 +750,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
               disabled={currentStep === 1 && !validateForm()}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              Next
+              {currentStep === 3 ? 'Confirm & Continue' : 'Next'}
             </button>
           ) : (
             <button
