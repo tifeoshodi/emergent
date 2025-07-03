@@ -3,6 +3,7 @@ import pmfusionAPI from './lib/api';
 import { supabase } from './lib/supabaseClient';
 import ProjectCreationWizard from './ProjectCreationWizard';
 import KanbanBoard from './KanbanBoard';
+import DisciplineRegister from './DisciplineRegister';
 
 const PMFusionApp = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -385,6 +386,16 @@ const PMFusionApp = () => {
                 Projects
               </button>
               <button
+                onClick={() => setCurrentView('disciplines')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentView === 'disciplines'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Disciplines
+              </button>
+              <button
                 onClick={() => setCurrentView('kanban')}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   currentView === 'kanban'
@@ -718,6 +729,7 @@ const PMFusionApp = () => {
         
         {currentView === 'dashboard' && <DashboardView />}
         {currentView === 'projects' && <ProjectsView />}
+        {currentView === 'disciplines' && <DisciplineRegister />}
         {currentView === 'kanban' && <KanbanView />}
         {currentView === 'documents' && <DocumentsView />}
       </div>

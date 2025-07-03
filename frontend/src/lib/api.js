@@ -174,6 +174,18 @@ class PMFusionAPI {
     });
   }
 
+  async addDisciplineMember(name, userId) {
+    return this.request(`/disciplines/${name}/members/${userId}`, {
+      method: 'POST'
+    });
+  }
+
+  async removeDisciplineMember(name, userId) {
+    return this.request(`/disciplines/${name}/members/${userId}`, {
+      method: 'DELETE'
+    });
+  }
+
   async healthCheck() {
     return this.request('/health');
   }
