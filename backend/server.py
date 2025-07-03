@@ -27,6 +27,13 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# Configure logging before any logger calls
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: list):
     """
     Safely import items with fallback paths and clear error reporting.
@@ -2913,12 +2920,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 @app.on_event("shutdown")
