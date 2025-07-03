@@ -159,6 +159,44 @@ class PMFusionAPI {
     return this.updateTask(taskId, { status });
   }
 
+  // ========================================================================
+  // PHASE 3: DOCUMENT CONTROL ENDPOINTS
+  // ========================================================================
+
+  async getDocuments(params = {}) {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.review_step) query.append('review_step', params.review_step);
+    if (params.project_id) query.append('project_id', params.project_id);
+    const qs = query.toString();
+    const endpoint = qs ? `/documents?${qs}` : '/documents';
+    return this.request(endpoint);
+  }
+
+  async getDccDocuments() {
+    return this.request('/documents/dcc');
+  }
+
+  async finalizeDocument(documentId) {
+    return this.request(`/documents/${documentId}/dcc_finalize`, {
+      method: 'POST'
+    });
+  }
+
+  async updateDocumentStatus(documentId, statusData) {
+    return this.request(`/documents/${documentId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(statusData)
+    });
+  }
+
+  async getDocumentAnalytics(projectId) {
+    const endpoint = projectId
+      ? `/documents/analytics/summary?project_id=${projectId}`
+      : '/documents/analytics/summary';
+    return this.request(endpoint);
+  }
+
   // ============================================================================
   // GENERAL ENDPOINTS
   // ============================================================================

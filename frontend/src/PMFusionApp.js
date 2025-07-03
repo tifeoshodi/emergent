@@ -644,31 +644,138 @@ const PMFusionApp = () => {
     );
   };
 
-  const DocumentsView = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Document Control Centre</h2>
-      <div className="bg-white p-6 rounded-lg shadow">
-        <p className="text-gray-600 mb-4">Phase 3: Document Control workflow management</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-semibold text-purple-600">DCC Queue</h4>
-            <p className="text-sm text-gray-600">Documents awaiting review</p>
-            <div className="mt-2 text-2xl font-bold text-purple-600">3</div>
+  const DocumentsView = () => {
+    const [dccDocs, setDccDocs] = useState([]);
+    const [clientDocs, setClientDocs] = useState([]);
+    const [approvedDocs, setApprovedDocs] = useState([]);
+    const [metrics, setMetrics] = useState(null);
+    const [docsLoading, setDocsLoading] = useState(true);
+
+    useEffect(() => {
+      fetchAllDocs();
+    }, [selectedProject]);
+
+    const fetchAllDocs = async () => {
+      setDocsLoading(true);
+      try {
+        const [dcc, client, approved, summary] = await Promise.all([
+          pmfusionAPI.getDocuments({ review_step: 'dcc', project_id: selectedProject?.id }),
+          pmfusionAPI.getDocuments({ status: 'under_review', project_id: selectedProject?.id }),
+          pmfusionAPI.getDocuments({ status: 'approved', project_id: selectedProject?.id }),
+          pmfusionAPI.getDocumentAnalytics(selectedProject?.id)
+        ]);
+
+        setDccDocs(dcc || []);
+        setClientDocs(client || []);
+        setApprovedDocs(approved || []);
+        setMetrics(summary || null);
+      } catch (err) {
+        console.error('Failed loading documents', err);
+      } finally {
+        setDocsLoading(false);
+      }
+    };
+
+    const handleSendToClient = async (id) => {
+      try {
+        await pmfusionAPI.finalizeDocument(id);
+        fetchAllDocs();
+      } catch (err) {
+        console.error('Finalize failed', err);
+      }
+    };
+
+    const handleApprove = async (id) => {
+      try {
+        await pmfusionAPI.updateDocumentStatus(id, { status: 'approved', approved_by: currentUser.id });
+        fetchAllDocs();
+      } catch (err) {
+        console.error('Approval failed', err);
+      }
+    };
+
+    const handleReject = async (id) => {
+      try {
+        await pmfusionAPI.updateDocumentStatus(id, { status: 'draft', reviewed_by: currentUser.id });
+        fetchAllDocs();
+      } catch (err) {
+        console.error('Rejection failed', err);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-900">Document Control Centre</h2>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-gray-600 mb-4">Phase 3: Document Control workflow management</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-semibold text-purple-600">DCC Queue</h4>
+              <p className="text-sm text-gray-600">Documents awaiting review</p>
+              <div className="mt-2 text-2xl font-bold text-purple-600">{dccDocs.length}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-semibold text-orange-600">Client Review</h4>
+              <p className="text-sm text-gray-600">External approval process</p>
+              <div className="mt-2 text-2xl font-bold text-orange-600">{clientDocs.length}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-semibold text-green-600">Approved</h4>
+              <p className="text-sm text-gray-600">Completed documents</p>
+              <div className="mt-2 text-2xl font-bold text-green-600">{approvedDocs.length}</div>
+            </div>
           </div>
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-semibold text-orange-600">Client Review</h4>
-            <p className="text-sm text-gray-600">External approval process</p>
-            <div className="mt-2 text-2xl font-bold text-orange-600">1</div>
-          </div>
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-semibold text-green-600">Approved</h4>
-            <p className="text-sm text-gray-600">Completed documents</p>
-            <div className="mt-2 text-2xl font-bold text-green-600">8</div>
-          </div>
+
+          {/* Document Lists */}
+          {docsLoading ? (
+            <div className="text-gray-500">Loading documents...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-semibold mb-2">DCC Queue</h3>
+                <div className="space-y-2">
+                  {dccDocs.map(doc => (
+                    <div key={doc.id} className="flex justify-between items-center p-2 border rounded">
+                      <span className="text-sm">{doc.title}</span>
+                      <button onClick={() => handleSendToClient(doc.id)} className="text-blue-600 text-sm">Send</button>
+                    </div>
+                  ))}
+                  {dccDocs.length === 0 && <p className="text-sm text-gray-500">No documents</p>}
+                </div>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">Client Review</h3>
+                <div className="space-y-2">
+                  {clientDocs.map(doc => (
+                    <div key={doc.id} className="flex justify-between items-center p-2 border rounded">
+                      <span className="text-sm">{doc.title}</span>
+                      <div className="space-x-2">
+                        <button onClick={() => handleApprove(doc.id)} className="text-green-600 text-sm">Approve</button>
+                        <button onClick={() => handleReject(doc.id)} className="text-red-600 text-sm">Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                  {clientDocs.length === 0 && <p className="text-sm text-gray-500">No documents</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {metrics && metrics.by_status && (
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {Object.entries(metrics.by_status).map(([status, info]) => (
+                <div key={status} className="text-center p-4 border rounded">
+                  <div className="text-2xl font-bold">{info.count}</div>
+                  <div className="text-sm text-gray-600 capitalize">{status.replace('_', ' ')}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Show loading while checking authentication
   if (authLoading) {
