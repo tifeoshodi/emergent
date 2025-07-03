@@ -350,88 +350,71 @@ const PMFusionApp = () => {
     setCurrentView('dashboard');
   };
 
-  const Navigation = () => (
-    <nav className="bg-white shadow-lg border-b mb-6">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo and Brand */}
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-blue-600">PMFusion</h1>
-              <p className="text-xs text-gray-500">Three-Phase Workflow</p>
-            </div>
-          </div>
+  const Navigation = () => {
+    const NAV_LABELS = {
+      dashboard: 'Dashboard',
+      projects: 'Projects',
+      disciplines: 'Disciplines',
+      kanban: 'Team Workspace',
+      documents: 'Document Control'
+    };
 
-          {/* Navigation Links */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-4">
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'dashboard'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => setCurrentView('projects')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'projects'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Projects
-              </button>
-              <button
-                onClick={() => setCurrentView('disciplines')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'disciplines'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Disciplines
-              </button>
-              <button
-                onClick={() => setCurrentView('kanban')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'kanban'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Team Workspace
-              </button>
-              <button
-                onClick={() => setCurrentView('documents')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'documents'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Document Control
-              </button>
-            </div>
-          </div>
+    const ROLE_VIEWS = {
+      admin: ['dashboard', 'projects', 'disciplines', 'kanban', 'documents'],
+      scheduler: ['dashboard', 'projects', 'disciplines', 'kanban', 'documents'],
+      team_lead: ['dashboard', 'kanban', 'documents'],
+      team_member: ['dashboard', 'kanban'],
+      dcc: ['dashboard', 'documents'],
+      client: ['documents']
+    };
 
-          {/* User Info and Actions */}
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-700">
-              {currentUser?.name} ({currentUser?.role})
+    const allowedViews = ROLE_VIEWS[currentUser?.role] || ['dashboard'];
+
+    return (
+      <nav className="bg-white shadow-lg border-b mb-6">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo and Brand */}
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <h1 className="text-xl font-bold text-blue-600">PMFusion</h1>
+                <p className="text-xs text-gray-500">Three-Phase Workflow</p>
+              </div>
             </div>
-            
-            {currentUser?.role === 'scheduler' && (
-              <button
-                onClick={() => setShowProjectWizard(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                Create Project
-              </button>
-            )}
+
+            {/* Navigation Links */}
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-baseline space-x-4">
+                {allowedViews.map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setCurrentView(view)}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      currentView === view
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {NAV_LABELS[view]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* User Info and Actions */}
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-700">
+                {currentUser?.name} ({currentUser?.role})
+              </div>
+
+              {(currentUser?.role === 'scheduler' || currentUser?.role === 'admin') && (
+                <button
+                  onClick={() => setShowProjectWizard(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Create Project
+                </button>
+              )}
             
             <button
               onClick={handleLogout}
