@@ -19,4 +19,4 @@ async def health_check() -> HealthResponse:
     
     Returns the current status and version of the PMFusion API service.
     """
-    return HealthResponse(status="healthy", version="2.0") 
+    return HealthResponse(status="healthy", version=API_VERSION)

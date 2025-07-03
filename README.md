@@ -24,3 +24,8 @@ make test
 
 This is equivalent to running `bash scripts/setup_env.sh` followed by
 `pytest -q`.
+
+## Environment Variables
+
+The backend reads an optional `API_VERSION` environment variable. This value is
+returned by the `/api/v2/health` endpoint and defaults to `"2.0"` when not set.
