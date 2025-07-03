@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 import importlib
 
 from document_parser import parse_document as ocr_parse_document
+import jwt
 from dotenv import load_dotenv
 from fastapi import (
     APIRouter,
@@ -850,7 +851,11 @@ async def create_project(project: ProjectCreate, authorization: Optional[str] = 
     if supabase and authorization:
         token = authorization.split(" ")[-1]
         try:
-            insert("projects", project_obj.model_dump(), jwt=token)
+            claims = jwt.decode(token, options={"verify_signature": False})
+            data = project_obj.model_dump()
+            if claims.get("org_id") and not data.get("org_id"):
+                data["org_id"] = claims.get("org_id")
+            insert("projects", data, jwt=token)
         except Exception as exc:
             logger.warning(f"Supabase insert failed: {exc}")
     return project_obj
