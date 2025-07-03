@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
+import importlib
 
 from document_parser import parse_document as ocr_parse_document
 from dotenv import load_dotenv
@@ -25,17 +26,95 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from backend.external_integrations.supabase_client import supabase, insert, select
+
+def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: list):
+    """
+    Safely import items with fallback paths and clear error reporting.
+    
+    Args:
+        primary_path: Primary module path to try first
+        fallback_path: Fallback module path if primary fails
+        items: List of item names to import
+        
+    Returns:
+        dict: Dictionary of imported items
+        
+    Raises:
+        ImportError: If both paths fail with detailed error information
+    """
+    logger.info(f"Attempting to import {items} from {primary_path}")
+    
+    try:
+        module = importlib.import_module(primary_path)
+        imported_items = {item: getattr(module, item) for item in items}
+        logger.info(f"Successfully imported from {primary_path}")
+        return imported_items
+    except (ImportError, AttributeError) as primary_error:
+        logger.warning(f"Primary import from {primary_path} failed: {primary_error}")
+        
+        try:
+            logger.info(f"Trying fallback import from {fallback_path}")
+            module = importlib.import_module(fallback_path)
+            imported_items = {item: getattr(module, item) for item in items}
+            logger.info(f"Successfully imported from fallback {fallback_path}")
+            return imported_items
+        except (ImportError, AttributeError) as fallback_error:
+            logger.error(f"Fallback import from {fallback_path} also failed: {fallback_error}")
+            raise ImportError(
+                f"Failed to import {items}. "
+                f"Primary path '{primary_path}': {primary_error}. "
+                f"Fallback path '{fallback_path}': {fallback_error}"
+            )
+
+# Import supabase client components with clear fallback pattern
+logger.info("Importing Supabase client components...")
+supabase_imports = safe_import_with_fallbacks(
+    primary_path='backend.external_integrations.supabase_client',
+    fallback_path='external_integrations.supabase_client',
+    items=['supabase', 'insert', 'select']
+)
+supabase = supabase_imports['supabase']
+insert = supabase_imports['insert'] 
+select = supabase_imports['select']
+
+# Import API routes with clear fallback pattern
+logger.info("Importing API routes...")
+try:
+    # Try loading the api_routes module directly from the same directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    api_routes_path = os.path.join(current_dir, 'api_routes.py')
+    
+    if os.path.exists(api_routes_path):
+        # Use importlib to load the module by file path
+        spec = importlib.util.spec_from_file_location("api_routes", api_routes_path)
+        api_routes_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(api_routes_module)
+        api_routes_router = api_routes_module.router
+        logger.info("Successfully imported API routes from file path")
+    else:
+        raise ImportError("api_routes.py not found")
+        
+except Exception as e:
+    logger.warning(f"Failed to import API routes: {e}")
+    # Create a dummy router if all imports fail
+    api_routes_router = APIRouter()
+    logger.warning("Created dummy router - API routes not available")
+
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from collections import deque
 from pymongo.client_session import ClientSession
 from starlette.middleware.cors import CORSMiddleware
-from backend.dependency_suggester import (
-    DependencySuggestion,
-    MinimalTask,
-    propose_dependencies,
+# Import dependency suggester with clear fallback pattern
+logger.info("Importing dependency suggester components...")
+dependency_suggester_imports = safe_import_with_fallbacks(
+    primary_path='backend.dependency_suggester',
+    fallback_path='dependency_suggester',
+    items=['DependencySuggestion', 'MinimalTask', 'propose_dependencies']
 )
+DependencySuggestion = dependency_suggester_imports['DependencySuggestion']
+MinimalTask = dependency_suggester_imports['MinimalTask']
+propose_dependencies = dependency_suggester_imports['propose_dependencies']
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta, date
@@ -72,6 +151,9 @@ async def ensure_wbs_index() -> None:
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# Include the new PMFusion workflow routes
+app.include_router(api_routes_router)
 
 
 # Root endpoint for API health check

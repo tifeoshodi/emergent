@@ -38,8 +38,18 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *pyc*
-#*.env
-.ac
+# Environment files - CRITICAL: Never commit these!
+.env
+.env.*
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# BUT allow .env.example files (these are safe templates)
+!.env.example
+!**/.env.example
+!**/.env.example.*.ac
 agenthub/agents/youtube/db
 *credentials.json*
 

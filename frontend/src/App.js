@@ -9,9 +9,9 @@ import { supabase } from "./lib/supabaseClient";
 import Components from "./Components";
 import WBSGenerator from "./WBSGenerator";
 
-const currentUser = { role: "scheduler" };
+// Import PMFusion Three-Phase Workflow Components
+import PMFusionApp from "./PMFusionApp";
 
-import Components from "./Components";
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -2551,6 +2551,8 @@ const DocumentControlCenter = () => {
   );
 };
 const Navigation = ({ currentPage }) => {
+  const { currentUser } = useContext(AuthContext);
+  
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -2600,7 +2602,7 @@ const Navigation = ({ currentPage }) => {
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
               </Link>
-              {currentUser.role === 'scheduler' && (
+              {currentUser && currentUser.role === 'scheduler' && (
                 <Link
                   to="/wbs"
                   className={`nav-item ${currentPage === 'wbs' ? 'nav-item-active' : 'nav-item-inactive'}`}
@@ -2615,6 +2617,13 @@ const Navigation = ({ currentPage }) => {
               >
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Control Center
+              </Link>
+              <Link
+                to="/pmfusion"
+                className={`nav-item ${currentPage === 'pmfusion' ? 'nav-item-active' : 'nav-item-inactive'}`}
+              >
+                <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                PMFusion Workflow
               </Link>
             </div>
           </div>
@@ -2687,12 +2696,15 @@ function App() {
             <main><WBSGenerator /></main>
           </>
         } />
+        <Route path="/pmfusion" element={
+          <>
+            <Navigation currentPage="pmfusion" />
+            <main><PMFusionApp /></main>
+          </>
+        } />
       </Routes>
     </div>
   );
 }
 
 export default App;
-
-// Named exports for context and provider
-export { AuthContext, AuthProvider };
