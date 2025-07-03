@@ -136,6 +136,23 @@ class PMFusionAPI {
     return this.request(`/projects/${projectId}`);
   }
 
+  async updateProject(projectId, projectData) {
+    return this.request(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(projectData),
+    });
+  }
+
+  async generateProjectWBS(projectId) {
+    return this.request(`/projects/${projectId}/wbs`, {
+      method: 'POST',
+    });
+  }
+
+  async getProjectWBS(projectId) {
+    return this.request(`/projects/${projectId}/wbs`);
+  }
+
   // ============================================================================
   // PHASE 2: TEAMS EXECUTION ENDPOINTS
   // ============================================================================
