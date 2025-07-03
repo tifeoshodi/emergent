@@ -24,10 +24,11 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Configure logging before any logger calls
+# Configure logging early so it's available for module-level imports
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
