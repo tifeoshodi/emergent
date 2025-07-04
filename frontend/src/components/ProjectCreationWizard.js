@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import pmfusionAPI from '../lib/api';
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from './ui';
 
 const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -456,72 +457,77 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
   );
 
   const renderStep1 = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <Card>
+      <CardHeader>
+        <CardTitle>Project Information</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="project-name">Project Name *</Label>
+            <Input
+              id="project-name"
+              type="text"
+              value={formData.name}
+              onChange={(e) => updateFormData('name', e.target.value)}
+              placeholder="Catalytic Cracker Unit Revamp"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="project-code">Project Code</Label>
+            <Input
+              id="project-code"
+              type="text"
+              value={formData.code}
+              onChange={(e) => updateFormData('code', e.target.value)}
+              placeholder="CCU-2024-REV"
+            />
+          </div>
+        </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
-          <input
+          <Label htmlFor="project-desc">Project Description</Label>
+          <textarea
+            id="project-desc"
+            value={formData.description}
+            onChange={(e) => updateFormData('description', e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            placeholder="Detailed description of the project scope and objectives..."
+          />
+        </div>
+        <div>
+          <Label htmlFor="client-name">Client Name</Label>
+          <Input
+            id="client-name"
             type="text"
-            value={formData.name}
-            onChange={(e) => updateFormData('name', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Catalytic Cracker Unit Revamp"
-            required
+            value={formData.client_name}
+            onChange={(e) => updateFormData('client_name', e.target.value)}
+            placeholder="Global Refinery Corp"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project Code</label>
-          <input
-            type="text"
-            value={formData.code}
-            onChange={(e) => updateFormData('code', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="CCU-2024-REV"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="start-date">Start Date</Label>
+            <Input
+              id="start-date"
+              type="date"
+              value={formData.start_date}
+              onChange={(e) => updateFormData('start_date', e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="end-date">End Date</Label>
+            <Input
+              id="end-date"
+              type="date"
+              value={formData.end_date}
+              onChange={(e) => updateFormData('end_date', e.target.value)}
+            />
+          </div>
         </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Project Description</label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => updateFormData('description', e.target.value)}
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Detailed description of the project scope and objectives..."
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-        <input
-          type="text"
-          value={formData.client_name}
-          onChange={(e) => updateFormData('client_name', e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Global Refinery Corp"
-        />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-          <input
-            type="date"
-            value={formData.start_date}
-            onChange={(e) => updateFormData('start_date', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-          <input
-            type="date"
-            value={formData.end_date}
-            onChange={(e) => updateFormData('end_date', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 
   const renderStep2 = () => (
@@ -737,29 +743,16 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
         </div>
         
         <div className="flex space-x-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
-          >
-            Cancel
-          </button>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
           
           {currentStep < 4 ? (
-            <button
-              onClick={nextStep}
-              disabled={currentStep === 1 && !validateForm()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
+            <Button onClick={nextStep} disabled={currentStep === 1 && !validateForm()}>
               {currentStep === 3 ? 'Confirm & Continue' : 'Next'}
-            </button>
+            </Button>
           ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-            >
+            <Button onClick={handleSubmit} disabled={loading}>
               {loading ? 'Creating...' : 'Create Project'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
