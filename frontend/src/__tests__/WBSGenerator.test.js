@@ -1,15 +1,14 @@
 import '@testing-library/jest-dom';
 import { BrowserRouter } from 'react-router-dom';
-import { render } from '@testing-library/react';
-import WBSGenerator from '../pages/WBSGenerator';
-import axios from 'axios';
-import { act } from 'react-dom/test-utils';
+import { render, screen } from '@testing-library/react';
+import WBSGenerator from '../components/WBSGenerator';
 
-jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }));
+test('wbs generator loads with empty project list', async () => {
+  render(
+    <BrowserRouter>
+      <WBSGenerator />
+    </BrowserRouter>
+  );
 
-test('wbs generator renders without crashing', async () => {
-  axios.get.mockResolvedValue({ data: [] });
-  await act(async () => {
-    render(<BrowserRouter><WBSGenerator /></BrowserRouter>);
-  });
+  expect(await screen.findByText(/Generate Project WBS/i)).toBeInTheDocument();
 });

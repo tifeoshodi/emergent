@@ -24,12 +24,25 @@ export const handlers = [
   ),
   http.get(`${API}/tasks`, () => HttpResponse.json([])),
   http.get(`${API}/projects`, () => HttpResponse.json([])),
+  http.get(`${API}/projects/:id/dashboard`, ({ params }) =>
+    HttpResponse.json({
+      projectId: params.id,
+      stats: {
+        total_tasks: 0,
+        completed_tasks: 0,
+      },
+    })
+  ),
+  http.get(`${API}/dashboard/discipline`, () =>
+    HttpResponse.json({ users: [] })
+  ),
 
   // Project creation
   http.post(`${API_V2}/projects`, async ({ request }) => {
     const body = await request.json();
     return HttpResponse.json({ id: 'proj1', ...body });
   }),
+  http.post(`${API}/projects/:id/wbs`, () => HttpResponse.json({})),
   http.post(`${API_V2}/projects/:id/wbs`, () => HttpResponse.json({})),
   http.get(`${API_V2}/projects/:id/wbs`, () => HttpResponse.json([])),
   http.put(`${API_V2}/projects/:id`, async ({ params, request }) => {
