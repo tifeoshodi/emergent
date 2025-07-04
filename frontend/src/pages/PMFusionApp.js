@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
 import ProjectCreationWizard from '../components/ProjectCreationWizard';
-import KanbanBoard from '../components/KanbanBoard';
 import DisciplineRegister from '../components/DisciplineRegister';
+import DashboardView from '../components/DashboardView';
+import KanbanView from '../components/KanbanView';
 
 const PMFusionApp = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -427,100 +428,7 @@ const PMFusionApp = () => {
       </div>
     </nav>
   );
-
-  const DashboardView = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900">Total Projects</h3>
-          <p className="text-3xl font-bold text-blue-600">{projects.length}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900">Active Disciplines</h3>
-          <p className="text-3xl font-bold text-green-600">{disciplines.length}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900">System Status</h3>
-          <p className="text-3xl font-bold text-purple-600">Demo</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900">Workflow Phase</h3>
-          <p className="text-lg font-bold text-purple-600">Three-Phase</p>
-        </div>
-      </div>
-
-      {/* Three-Phase Workflow Overview */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">Three-Phase Project Management Workflow</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-4 border rounded-lg">
-            <h4 className="text-lg font-semibold text-blue-600 mb-2">Phase 1: Project Creation</h4>
-            <p className="text-sm text-gray-600 mb-3">
-              Scheduler role creates projects using CTR/MDR documents with WBS generation and CPM analysis.
-            </p>
-            <ul className="text-xs text-gray-500 space-y-1">
-              <li>• 4-step project wizard</li>
-              <li>• Document intake (Manual/OCR)</li>
-              <li>• WBS generation</li>
-              <li>• Dashboard configuration</li>
-            </ul>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h4 className="text-lg font-semibold text-green-600 mb-2">Phase 2: Teams Execution</h4>
-            <p className="text-sm text-gray-600 mb-3">
-              Discipline-based kanban boards with task assignment and status tracking through review stages.
-            </p>
-            <ul className="text-xs text-gray-500 space-y-1">
-              <li>• Kanban task boards</li>
-              <li>• Team lead assignment</li>
-              <li>• DIC → IDC → DCC workflow</li>
-              <li>• Real-time collaboration</li>
-            </ul>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h4 className="text-lg font-semibold text-purple-600 mb-2">Phase 3: Document Control</h4>
-            <p className="text-sm text-gray-600 mb-3">
-              DCC officers manage client communication, approvals, and document lifecycle.
-            </p>
-            <ul className="text-xs text-gray-500 space-y-1">
-              <li>• Document review queues</li>
-              <li>• Client approval workflow</li>
-              <li>• Version control</li>
-              <li>• Compliance tracking</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Projects */}
-      {projects.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Active Projects</h3>
-          <div className="space-y-3">
-            {projects.map(project => (
-              <div key={project.id} className="flex justify-between items-center p-3 border rounded">
-                <div>
-                  <h4 className="font-medium text-gray-900">{project.name}</h4>
-                  <p className="text-sm text-gray-600">{project.code || 'No code'}</p>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  project.status === 'active' ? 'bg-green-100 text-green-800' : 
-                  project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {project.status || 'Unknown'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const ProjectsView = () => (
+const ProjectsView = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
@@ -577,68 +485,7 @@ const PMFusionApp = () => {
       </div>
     </div>
   );
-
-  const KanbanView = () => {
-    if (!selectedProject || !selectedDiscipline) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">Select a project and discipline to view the kanban board</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {/* Project and Discipline Selector */}
-        <div className="bg-white p-4 rounded-lg shadow flex gap-4 items-center">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-            <select
-              value={selectedProject?.id || ''}
-              onChange={(e) => {
-                const project = projects.find(p => p.id === e.target.value);
-                setSelectedProject(project);
-              }}
-              className="border border-gray-300 rounded-md px-3 py-2"
-            >
-              {projects.map(project => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label>
-            <select
-              value={selectedDiscipline?.id || ''}
-              onChange={(e) => {
-                const discipline = disciplines.find(d => d.id === e.target.value);
-                setSelectedDiscipline(discipline);
-              }}
-              className="border border-gray-300 rounded-md px-3 py-2"
-            >
-              {disciplines.map(discipline => (
-                <option key={discipline.id} value={discipline.id}>
-                  {discipline.name} ({discipline.code})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Kanban Board */}
-        <KanbanBoard
-          disciplineId={selectedDiscipline.id}
-          projectId={selectedProject.id}
-          currentUser={currentUser}
-        />
-      </div>
-    );
-  };
-
-  const DocumentsView = () => {
+const DocumentsView = () => {
     const [dccDocs, setDccDocs] = useState([]);
     const [clientDocs, setClientDocs] = useState([]);
     const [approvedDocs, setApprovedDocs] = useState([]);
@@ -817,10 +664,22 @@ const PMFusionApp = () => {
           </div>
         )}
         
-        {currentView === 'dashboard' && <DashboardView />}
+        {currentView === 'dashboard' && (
+          <DashboardView projects={projects} disciplines={disciplines} />
+        )}
         {currentView === 'projects' && <ProjectsView />}
         {currentView === 'disciplines' && <DisciplineRegister />}
-        {currentView === 'kanban' && <KanbanView />}
+        {currentView === 'kanban' && (
+          <KanbanView
+            selectedProject={selectedProject}
+            selectedDiscipline={selectedDiscipline}
+            projects={projects}
+            disciplines={disciplines}
+            setSelectedProject={setSelectedProject}
+            setSelectedDiscipline={setSelectedDiscipline}
+            currentUser={currentUser}
+          />
+        )}
         {currentView === 'documents' && <DocumentsView />}
       </div>
     </div>
