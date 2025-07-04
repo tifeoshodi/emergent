@@ -24,6 +24,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
 
   // File upload state
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [fileProgress, setFileProgress] = useState({});
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
@@ -31,6 +32,8 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
   const [projectId, setProjectId] = useState(null);
   const [wbsTree, setWbsTree] = useState([]);
   const [wbsLoading, setWbsLoading] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState(null);
+  const [editValues, setEditValues] = useState({ title: '', duration_days: 0 });
 
   // Accepted file types
   const acceptedFileTypes = [
@@ -111,7 +114,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
             name: file.name,
             size: file.size,
             type: file.type,
-            status: 'uploaded',
+            status: 'uploading',
             uploadedAt: new Date().toISOString()
           });
         } else {
@@ -126,7 +129,24 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
 
     if (validFiles.length > 0) {
       setUploadedFiles(prev => [...prev, ...validFiles]);
+      validFiles.forEach(f => simulateProcessing(f.id));
     }
+  };
+
+  const simulateProcessing = (fileId) => {
+    setFileProgress(prev => ({ ...prev, [fileId]: 0 }));
+    setUploadedFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processing' } : f));
+    let progress = 0;
+    const step = () => {
+      progress += 20;
+      setFileProgress(p => ({ ...p, [fileId]: progress }));
+      if (progress < 100) {
+        setTimeout(step, 400);
+      } else {
+        setUploadedFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processed' } : f));
+      }
+    };
+    step();
   };
 
   // Drag and drop handlers
@@ -583,7 +603,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
           </h4>
           <div className="space-y-2">
             {uploadedFiles.map(file => (
-              <div key={file.id} className="flex items-center justify-between bg-white p-3 rounded border">
+              <div key={file.id} className="space-y-1 bg-white p-3 rounded border">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
                     {file.type.includes('pdf') ? (
@@ -605,17 +625,28 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
                     <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(file.id);
-                  }}
-                  className="flex-shrink-0 ml-3 text-red-400 hover:text-red-600"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1 h-2 bg-gray-200 rounded">
+                    <div
+                      className="h-2 bg-blue-500 rounded"
+                      style={{ width: `${fileProgress[file.id] || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {file.status === 'processed' ? 'Done' : `${fileProgress[file.id] || 0}%`}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(file.id);
+                    }}
+                    className="text-red-400 hover:text-red-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -624,17 +655,41 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
     </div>
   );
 
-  const renderWBSNode = (node, level = 0) => (
-    <div
-      key={node.id}
-      className="flex items-center text-sm"
-      style={{ paddingLeft: `${level * 1}rem` }}
-    >
-      <span className="font-medium text-gray-700 w-24">{node.wbs_code}</span>
-      <span className="text-gray-900">{node.title}</span>
-      <span className="ml-auto text-gray-500">{Math.round(node.duration_days)} days</span>
-    </div>
-  );
+  const renderWBSNode = (node, level = 0) => {
+    const isEditing = editingNodeId === node.id;
+    return (
+      <div
+        key={node.id}
+        className="flex items-center text-sm"
+        style={{ paddingLeft: `${level * 1}rem` }}
+      >
+        <span className="font-medium text-gray-700 w-24">{node.wbs_code}</span>
+        {isEditing ? (
+          <>
+            <input
+              className="border rounded px-1 text-sm mr-2 flex-1"
+              value={editValues.title}
+              onChange={(e) => setEditValues(v => ({ ...v, title: e.target.value }))}
+            />
+            <input
+              type="number"
+              className="border rounded px-1 w-16 mr-2"
+              value={editValues.duration_days}
+              onChange={(e) => setEditValues(v => ({ ...v, duration_days: e.target.value }))}
+            />
+            <button onClick={() => saveNodeEdits(node.id)} className="text-blue-600 text-xs mr-1">Save</button>
+            <button onClick={() => setEditingNodeId(null)} className="text-gray-500 text-xs">Cancel</button>
+          </>
+        ) : (
+          <>
+            <span className="text-gray-900 flex-1">{node.title}</span>
+            <span className="ml-auto text-gray-500 mr-2">{Math.round(node.duration_days)} days</span>
+            <button onClick={() => { setEditingNodeId(node.id); setEditValues({ title: node.title, duration_days: node.duration_days }); }} className="text-blue-600 text-xs">Edit</button>
+          </>
+        )}
+      </div>
+    );
+  };
 
   const renderWBSTree = (nodes, level = 0) => (
     <>
@@ -650,6 +705,27 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
       ))}
     </>
   );
+
+  const updateNodeById = (nodes, nodeId, updater) => {
+    return nodes.map((n) => {
+      if (n.id === nodeId) {
+        return updater(n);
+      }
+      if (n.children) {
+        n.children = updateNodeById(n.children, nodeId, updater);
+      }
+      return n;
+    });
+  };
+
+  const saveNodeEdits = (nodeId) => {
+    setWbsTree(prev => updateNodeById([...prev], nodeId, (n) => ({
+      ...n,
+      title: editValues.title,
+      duration_days: parseFloat(editValues.duration_days) || 0,
+    })));
+    setEditingNodeId(null);
+  };
 
   const renderStep3 = () => (
     <div className="space-y-6">
