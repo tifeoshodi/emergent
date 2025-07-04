@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Components from '../Components';
+import { Icons } from '../components';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -142,7 +142,7 @@ const UserManagement = () => {
           onClick={() => setShowCreateUser(true)}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
         >
-          <Components.UserIcon className="h-5 w-5 inline mr-2" />
+          <Icons.UserIcon className="h-5 w-5 inline mr-2" />
           Add Team Member
         </button>
       </div>
@@ -154,7 +154,7 @@ const UserManagement = () => {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4">
-                  <Components.UserIcon className="h-6 w-6 text-purple-600" />
+                  <Icons.UserIcon className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">{user.name}</h3>
@@ -167,14 +167,14 @@ const UserManagement = () => {
                   className="text-gray-400 hover:text-blue-600 transition-colors"
                   title="Edit User"
                 >
-                  <Components.EditIcon className="h-4 w-4" />
+                  <Icons.EditIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => deleteUser(user.id)}
                   className="text-gray-400 hover:text-red-600 transition-colors"
                   title="Delete User"
                 >
-                  <Components.DeleteIcon className="h-4 w-4" />
+                  <Icons.DeleteIcon className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -219,7 +219,7 @@ const UserManagement = () => {
 
       {users.length === 0 && (
         <div className="text-center py-12">
-          <Components.UserIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Icons.UserIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members Yet</h3>
           <p className="text-gray-600 mb-4">Add your first team member to get started</p>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Components from '../Components';
+import { Icons, UI } from '../components';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -236,13 +236,13 @@ const ProjectManagement = () => {
 
     switch (currentView) {
       case 'kanban':
-        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
+        return <UI.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
       case 'gantt':
-        return <Components.GanttChart ganttData={ganttData} users={users} />;
+        return <UI.GanttChart ganttData={ganttData} users={users} />;
       case 'resources':
-        return <Components.ResourceManagement resources={resourceData} />;
+        return <UI.ResourceManagement resources={resourceData} />;
       default:
-        return <Components.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
+        return <UI.DragDropKanbanBoard kanbanData={kanbanData} users={users} epics={[]} sprints={[]} onStatusChange={updateTaskStatus} onDragEnd={handleDragEnd} onDelete={deleteTask} />;
     }
   };
 
@@ -292,7 +292,7 @@ const ProjectManagement = () => {
                   className="px-2 py-2 text-gray-400 hover:text-red-600 transition-colors rounded-r-full hover:bg-red-50"
                   title="Delete Project"
                 >
-                  <Components.DeleteIcon className="h-4 w-4" />
+                  <Icons.DeleteIcon className="h-4 w-4" />
                 </button>
               </div>
             ))}
@@ -312,7 +312,7 @@ const ProjectManagement = () => {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Components.TaskIcon className="h-4 w-4 inline mr-2" />
+              <Icons.TaskIcon className="h-4 w-4 inline mr-2" />
               Kanban Board
             </button>
             <button
@@ -323,7 +323,7 @@ const ProjectManagement = () => {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Components.ChartIcon className="h-4 w-4 inline mr-2" />
+              <Icons.ChartIcon className="h-4 w-4 inline mr-2" />
               Gantt Chart
             </button>
             <button
@@ -334,7 +334,7 @@ const ProjectManagement = () => {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Components.ResourceIcon className="h-4 w-4 inline mr-2" />
+              <Icons.ResourceIcon className="h-4 w-4 inline mr-2" />
               Resources
             </button>
           </div>
@@ -540,7 +540,7 @@ const ProjectManagement = () => {
       {/* Render Current View */}
       {selectedProject ? renderCurrentView() : (
         <div className="text-center py-12">
-          <Components.ProjectIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Icons.ProjectIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Projects Yet</h3>
           <p className="text-gray-600 mb-4">Create your first project to start managing tasks with advanced project management features</p>
         </div>

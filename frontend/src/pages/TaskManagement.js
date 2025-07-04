@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Components from '../Components';
+import { Icons, UI } from '../components';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -206,7 +206,7 @@ const TaskManagement = () => {
         </div>
       )}
 
-      <Components.DragDropKanbanBoard
+      <UI.DragDropKanbanBoard
         kanbanData={kanbanData}
         users={users}
         onStatusChange={updateTaskStatus}
@@ -216,7 +216,7 @@ const TaskManagement = () => {
 
       {Object.values(kanbanData).every(col => col.length === 0) && (
         <div className="text-center py-12">
-          <Components.TaskIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Icons.TaskIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Tasks Yet</h3>
           <p className="text-gray-600 mb-4">Create your first independent task to get started</p>
         </div>
