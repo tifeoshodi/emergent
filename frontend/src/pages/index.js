@@ -1,16 +1,16 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
-import "./App.css";
-import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
+import "../styles/App.css";
+import { Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import axios from "axios";
-import { supabase } from "./lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
-import Components from "./Components";
-import WBSGenerator from "./WBSGenerator";
+import Components from "../components/Components";
+import WBSGenerator from "../components/WBSGenerator";
 
 // Import PMFusion Three-Phase Workflow Components
-import PMFusionApp from "./PMFusionApp";
+import PMFusionApp from "../components/PMFusionApp";
 
 
 

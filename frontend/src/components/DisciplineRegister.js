@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import pmfusionAPI from './lib/api';
+import pmfusionAPI from '../lib/api';
 
 const DisciplineRegister = () => {
   const [disciplines, setDisciplines] = useState([]);
