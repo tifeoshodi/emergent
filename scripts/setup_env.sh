@@ -1,7 +1,22 @@
 #!/bin/bash
 # Setup script to install Python and Node dependencies
 
-set -e
+set -euo pipefail
+
+# Determine repository root from the script location and switch to it
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR/.."
+cd "$REPO_ROOT"
+
+# Ensure pip is available
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 not found. Please install Python 3." >&2
+    exit 1
+fi
+if ! command -v pip >/dev/null 2>&1; then
+    echo "Error: pip not found. Please install Python's pip." >&2
+    exit 1
+fi
 
 # install python packages
 if [ -f requirements.txt ]; then
@@ -17,8 +32,9 @@ fi
 # install frontend dependencies if yarn is available
 if [ -d frontend ]; then
     if command -v yarn >/dev/null 2>&1; then
-        echo "Installing frontend packages with yarn"
-        (cd frontend && yarn install)
+        echo "Installing frontend packages with yarn (skip build)"
+        # Skip building native modules to avoid failures in restricted envs
+        (cd frontend && yarn install --mode=skip-build)
     else
         echo "Yarn not found. Please install yarn to set up frontend dependencies."
     fi
