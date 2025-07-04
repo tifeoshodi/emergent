@@ -6,7 +6,7 @@ import { supabase } from "./lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
-import Components from "./Components";
+import Components from "./components";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import TaskManagement from "./pages/TaskManagement";
