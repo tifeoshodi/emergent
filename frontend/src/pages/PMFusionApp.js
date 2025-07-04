@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import pmfusionAPI from './lib/api';
-import { supabase } from './lib/supabaseClient';
-import ProjectCreationWizard from './ProjectCreationWizard';
-import KanbanBoard from './KanbanBoard';
-import DisciplineRegister from './DisciplineRegister';
+import pmfusionAPI from '../lib/api';
+import { supabase } from '../lib/supabaseClient';
+import ProjectCreationWizard from '../ProjectCreationWizard';
+import KanbanBoard from '../KanbanBoard';
+import DisciplineRegister from '../DisciplineRegister';
 
 const PMFusionApp = () => {
   const [currentView, setCurrentView] = useState('dashboard');
