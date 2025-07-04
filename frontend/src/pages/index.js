@@ -1,21 +1,13 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import "../styles/App.css";
-import { Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/router";
 import axios from "axios";
 import { supabase } from "../lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
 import Components from "../components/Components";
-import Dashboard from "./Dashboard";
-import UserManagement from "./UserManagement";
-import TaskManagement from "./TaskManagement";
-import ProjectManagement from "./ProjectManagement";
-import DocumentControlCenter from "./DocumentControlCenter";
-import WBSGenerator from "../components/WBSGenerator";
-
-// Import PMFusion Three-Phase Workflow Components
-import PMFusionApp from "../components/PMFusionApp";
 
 
 
@@ -62,14 +54,14 @@ const LoginPage = () => {
   const [userId, setUserId] = useState("");
   const [error, setError] = useState(null);
   const { login } = useContext(AuthContext);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     try {
       await login(userId);
-      navigate("/");
+      router.push("/");
     } catch (err) {
       setError("Login failed");
     }
@@ -223,26 +215,26 @@ const HomePage = () => {
               with Jira's agile workflows, designed specifically for EPC teams in oil & gas engineering.
             </p>
             <div className="flex justify-center gap-4">
-              <Link 
-                to="/dashboard" 
+              <Link
+                href="/dashboard"
                 className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
               >
                 Open Dashboard
               </Link>
-              <Link 
-                to="/projects" 
+              <Link
+                href="/projects"
                 className="bg-white hover:bg-gray-50 text-purple-600 border-2 border-purple-600 px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
               >
                 Manage Projects
               </Link>
-              <Link 
-                to="/users" 
+              <Link
+                href="/users"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
               >
                 Manage Team
               </Link>
-              <Link 
-                to="/documents" 
+              <Link
+                href="/documents"
                 className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-semibold transition-colors text-lg"
               >
                 Documents
@@ -1014,7 +1006,7 @@ const Navigation = ({ currentPage }) => {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center">
+              <Link href="/" className="flex items-center">
                 <h2 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                   PMFusion
                 </h2>
@@ -1023,35 +1015,35 @@ const Navigation = ({ currentPage }) => {
             </div>
             <div className="ml-10 flex items-baseline space-x-4">
               <Link
-                to="/dashboard"
+                href="/dashboard"
                 className={`nav-item ${currentPage === 'dashboard' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.ChartIcon className="h-4 w-4 inline mr-1" />
                 Dashboard
               </Link>
               <Link
-                to="/tasks"
+                href="/tasks"
                 className={`nav-item ${currentPage === 'tasks' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.TaskIcon className="h-4 w-4 inline mr-1" />
                 Tasks
               </Link>
               <Link
-                to="/projects"
+                href="/projects"
                 className={`nav-item ${currentPage === 'projects' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.ProjectIcon className="h-4 w-4 inline mr-1" />
                 Projects
               </Link>
               <Link
-                to="/users"
+                href="/users"
                 className={`nav-item ${currentPage === 'users' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.UserIcon className="h-4 w-4 inline mr-1" />
                 Team
               </Link>
               <Link
-                to="/documents"
+                href="/documents"
                 className={`nav-item ${currentPage === 'documents' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
@@ -1059,7 +1051,7 @@ const Navigation = ({ currentPage }) => {
               </Link>
               {currentUser && currentUser.role === 'scheduler' && (
                 <Link
-                  to="/wbs"
+                  href="/wbs"
                   className={`nav-item ${currentPage === 'wbs' ? 'nav-item-active' : 'nav-item-inactive'}`}
                 >
                   <Components.ChartIcon className="h-4 w-4 inline mr-1" />
@@ -1067,14 +1059,14 @@ const Navigation = ({ currentPage }) => {
                 </Link>
               )}
               <Link
-                to="/dcc"
+                href="/dcc"
                 className={`nav-item ${currentPage === 'dcc' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Control Center
               </Link>
               <Link
-                to="/pmfusion"
+                href="/pmfusion"
                 className={`nav-item ${currentPage === 'pmfusion' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
                 <Components.ChartIcon className="h-4 w-4 inline mr-1" />
@@ -1084,7 +1076,7 @@ const Navigation = ({ currentPage }) => {
           </div>
           <div className="flex items-center">
             <Link
-              to="/"
+              href="/"
               className="text-gray-500 hover:text-gray-700 text-sm font-medium"
             >
               <Components.UserIcon className="h-4 w-4 inline mr-1" />
@@ -1106,58 +1098,10 @@ function App() {
 
   return (
     <div className="App min-h-screen bg-gray-50">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={
-          <>
-            <Navigation currentPage="dashboard" />
-            <main><Dashboard /></main>
-          </>
-        } />
-        <Route path="/tasks" element={
-          <>
-            <Navigation currentPage="tasks" />
-            <main><TaskManagement /></main>
-          </>
-        } />
-        <Route path="/projects" element={
-          <>
-            <Navigation currentPage="projects" />
-            <main><ProjectManagement /></main>
-          </>
-        } />
-        <Route path="/users" element={
-          <>
-            <Navigation currentPage="users" />
-            <main><UserManagement /></main>
-          </>
-        } />
-        <Route path="/documents" element={
-          <>
-            <Navigation currentPage="documents" />
-            <main><DocumentManagementPage /></main>
-          </>
-        } />
-        <Route path="/dcc" element={
-          <>
-            <Navigation currentPage="dcc" />
-            <main><DocumentControlCenter /></main>
-          </>
-        } />
-        <Route path="/wbs" element={
-          <>
-            <Navigation currentPage="wbs" />
-            <main><WBSGenerator /></main>
-          </>
-        } />
-        <Route path="/pmfusion" element={
-          <>
-            <Navigation currentPage="pmfusion" />
-            <main><PMFusionApp /></main>
-          </>
-        } />
-      </Routes>
+      <Navigation currentPage="home" />
+      <main>
+        <HomePage />
+      </main>
     </div>
   );
 }

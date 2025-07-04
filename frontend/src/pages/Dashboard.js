@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import axios from 'axios';
 import Components from '../Components';
 
@@ -88,8 +88,8 @@ const Dashboard = () => {
           <Components.ProjectIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Projects Found</h3>
           <p className="text-gray-600 mb-4">Create your first project to view the dashboard</p>
-          <Link 
-            to="/projects" 
+          <Link
+            href="/projects"
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
           >
             Create Project
@@ -107,8 +107,8 @@ const Dashboard = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-3xl font-bold text-gray-900">Project Dashboard</h1>
-          <Link 
-            to="/projects" 
+          <Link
+            href="/projects"
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             Manage Projects
@@ -203,8 +203,8 @@ const Dashboard = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Recent Tasks</h3>
-            <Link 
-              to="/projects" 
+            <Link
+              href="/projects"
               className="text-purple-600 hover:text-purple-700 text-sm font-medium"
             >
               View All
@@ -243,8 +243,8 @@ const Dashboard = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-4">
-            <Link 
-              to="/projects" 
+            <Link
+              href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
               <Components.TaskIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
@@ -252,8 +252,8 @@ const Dashboard = () => {
               <p className="text-xs text-gray-600">Manage tasks</p>
             </Link>
             
-            <Link 
-              to="/projects" 
+            <Link
+              href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
               <Components.ChartIcon className="h-8 w-8 text-purple-600 mx-auto mb-2" />
@@ -261,8 +261,8 @@ const Dashboard = () => {
               <p className="text-xs text-gray-600">Timeline view</p>
             </Link>
             
-            <Link 
-              to="/projects" 
+            <Link
+              href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
               <Components.ResourceIcon className="h-8 w-8 text-green-600 mx-auto mb-2" />
@@ -270,8 +270,8 @@ const Dashboard = () => {
               <p className="text-xs text-gray-600">Team allocation</p>
             </Link>
             
-            <Link 
-              to="/tasks" 
+            <Link
+              href="/tasks"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
               <Components.UserIcon className="h-8 w-8 text-orange-600 mx-auto mb-2" />
