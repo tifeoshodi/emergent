@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import pmfusionAPI from './lib/api';
+import pmfusionAPI from '../lib/api';
 
 const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(1);
