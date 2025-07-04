@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from './ui';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import pmfusionAPI from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
@@ -16,16 +17,17 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [announce, setAnnounce] = useState('');
 
   // Define kanban columns
   const columns = [
-    { id: 'backlog', title: 'Backlog', color: 'bg-gray-100' },
-    { id: 'todo', title: 'To Do', color: 'bg-blue-100' },
-    { id: 'in_progress', title: 'In Progress', color: 'bg-yellow-100' },
-    { id: 'review_dic', title: 'DIC Review', color: 'bg-purple-100' },
-    { id: 'review_idc', title: 'IDC Review', color: 'bg-orange-100' },
-    { id: 'review_dcc', title: 'DCC Review', color: 'bg-pink-100' },
-    { id: 'done', title: 'Done', color: 'bg-green-100' }
+    { id: 'backlog', title: 'Backlog', color: 'bg-discipline1/20' },
+    { id: 'todo', title: 'To Do', color: 'bg-discipline2/20' },
+    { id: 'in_progress', title: 'In Progress', color: 'bg-discipline3/20' },
+    { id: 'review_dic', title: 'DIC Review', color: 'bg-discipline4/20' },
+    { id: 'review_idc', title: 'IDC Review', color: 'bg-discipline5/20' },
+    { id: 'review_dcc', title: 'DCC Review', color: 'bg-discipline2/20' },
+    { id: 'done', title: 'Done', color: 'bg-discipline3/20' }
   ];
 
   useEffect(() => {
@@ -177,6 +179,20 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
     setShowAddTaskModal(false);
   };
 
+  const moveTaskKeyboard = (taskId, currentColumnId, destinationColumnId) => {
+    setKanbanData(prev => {
+      const updated = { ...prev };
+      const task = updated[currentColumnId].find(t => t.id === taskId);
+      if (!task) return prev;
+      updated[currentColumnId] = updated[currentColumnId].filter(t => t.id !== taskId);
+      task.status = destinationColumnId;
+      updated[destinationColumnId] = [task, ...updated[destinationColumnId]];
+      return updated;
+    });
+    pmfusionAPI.updateTaskStatus(taskId, destinationColumnId).catch(() => {});
+    setAnnounce(`Task moved to ${destinationColumnId}`);
+  };
+
   // Handle drag and drop operations
   const onDragEnd = (result) => {
     const { destination, source, draggableId } = result;
@@ -234,10 +250,9 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
       try {
         await pmfusionAPI.updateTaskStatus(draggableId, destinationColumnId);
         console.log(`Task ${draggableId} status updated to ${destinationColumnId} on server`);
+        setAnnounce(`Task moved to ${destinationColumnId}`);
       } catch (error) {
         console.error('Failed to update task status on server:', error);
-        // Optionally, you could revert the local state change here
-        // or show a user notification about the sync failure
       }
     };
 
@@ -273,73 +288,60 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-96 max-w-[90vw]">
-          <h3 className="text-lg font-semibold mb-4">Add New Task</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Task Title *
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter task title"
-                required
-              />
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter task description"
-                rows="3"
-              />
-            </div>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={1}>High (P1)</option>
-                <option value={2}>Medium (P2)</option>
-                <option value={3}>Low (P3)</option>
-              </select>
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowAddTaskModal(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Add Task
-              </button>
-            </div>
-          </form>
-        </div>
+        <Card className="w-96 max-w-[90vw]">
+          <CardHeader>
+            <CardTitle>Add New Task</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="task-title">Task Title *</Label>
+                <Input
+                  id="task-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter task title"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="task-desc">Description</Label>
+                <textarea
+                  id="task-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  rows="3"
+                />
+              </div>
+              <div>
+                <Label htmlFor="task-priority">Priority</Label>
+                <select
+                  id="task-priority"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value={1}>High (P1)</option>
+                  <option value={2}>Medium (P2)</option>
+                  <option value={3}>Low (P3)</option>
+                </select>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <Button type="button" variant="outline" onClick={() => setShowAddTaskModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Add Task</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   };
 
-  const TaskCard = ({ task, index }) => {
+  const TaskCard = ({ task, index, columnId }) => {
     const getPriorityColor = (priority) => {
       switch (priority) {
         case 1: return 'border-red-500 bg-red-50';
@@ -356,6 +358,18 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
             ref={provided.innerRef}
             {...provided.draggableProps}
             {...provided.dragHandleProps}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                const idx = columns.findIndex(c => c.id === columnId);
+                if (e.key === 'ArrowRight' && idx < columns.length - 1) {
+                  moveTaskKeyboard(task.id, columnId, columns[idx + 1].id);
+                }
+                if (e.key === 'ArrowLeft' && idx > 0) {
+                  moveTaskKeyboard(task.id, columnId, columns[idx - 1].id);
+                }
+              }
+            }}
             className={`p-3 mb-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-shadow ${
               getPriorityColor(task.priority)
             } ${
@@ -395,38 +409,40 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
     const tasks = kanbanData[column.id] || [];
     
     return (
-      <div className={`flex-1 min-w-[18rem] p-4 rounded-lg ${column.color}`}>
-        <div className="flex justify-between items-center mb-4">
+      <Card className={`flex-1 min-w-[18rem] p-4 ${column.color}`}>
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
           <h3 className="font-semibold text-gray-900">{column.title}</h3>
           <span className="bg-white text-gray-700 px-2 py-1 rounded-full text-sm font-medium">
             {tasks.length}
           </span>
-        </div>
+        </CardHeader>
         
-        <Droppable droppableId={column.id}>
-          {(provided, snapshot) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className={`space-y-2 min-h-[16rem] p-2 rounded-md transition-colors ${
-                snapshot.isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-300' : ''
-              }`}
-            >
-              {tasks.map((task, index) => (
-                <TaskCard key={task.id} task={task} index={index} />
-              ))}
-              
-              {provided.placeholder}
-              
-              {tasks.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-sm">No tasks</div>
-                </div>
-              )}
-            </div>
-          )}
-        </Droppable>
-      </div>
+        <CardContent className="p-2">
+          <Droppable droppableId={column.id}>
+            {(provided, snapshot) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={`space-y-2 min-h-[16rem] rounded-md transition-colors ${
+                  snapshot.isDraggingOver ? 'bg-blue-50 border-2 border-dashed border-blue-300' : ''
+                }`}
+              >
+                {tasks.map((task, index) => (
+                  <TaskCard key={task.id} task={task} index={index} columnId={column.id} />
+                ))}
+
+                {provided.placeholder}
+
+                {tasks.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-sm">No tasks</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </Droppable>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -467,20 +483,19 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
         </div>
         
         <div className="flex space-x-3">
-          <button
+          <Button
+            variant="outline"
             onClick={handleRefresh}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
             title={disciplineId && projectId ? 'Refresh kanban data' : 'Cannot refresh: missing IDs'}
           >
             Refresh
-          </button>
-          <button 
+          </Button>
+          <Button
             onClick={handleAddTask}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             title={disciplineId && projectId ? 'Add new task' : 'Cannot add task: missing IDs'}
           >
             Add Task
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -513,10 +528,11 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
       {/* Instructions */}
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>Demo Mode:</strong> This kanban board shows the three-phase workflow structure. 
+          <strong>Demo Mode:</strong> This kanban board shows the three-phase workflow structure.
           Tasks flow through Backlog → Teams → Document Control phases.
         </p>
       </div>
+      <div aria-live="polite" className="sr-only">{announce}</div>
     </div>
   );
 };

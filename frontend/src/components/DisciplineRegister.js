@@ -110,13 +110,13 @@ const DisciplineRegister = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Disciplines</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {disciplines.map((d) => (
+        {disciplines.map((d, idx) => (
           <div key={d.id} className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span
                   className="inline-block w-4 h-4 rounded-full"
-                  style={{ backgroundColor: d.color_hex || d.color || '#888' }}
+                  style={{ backgroundColor: `var(--discipline-${(idx % 5) + 1})` }}
                 ></span>
                 <h3 className="font-semibold">{d.name}</h3>
               </div>

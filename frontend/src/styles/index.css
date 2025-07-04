@@ -57,6 +57,11 @@ code {
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-discipline-1: var(--discipline-1);
+    --color-discipline-2: var(--discipline-2);
+    --color-discipline-3: var(--discipline-3);
+    --color-discipline-4: var(--discipline-4);
+    --color-discipline-5: var(--discipline-5);
 }
 
 :root {
@@ -84,6 +89,11 @@ code {
     --chart-3: oklch(0.398 0.07 227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
+    --discipline-1: oklch(0.646 0.222 41.116);
+    --discipline-2: oklch(0.6 0.118 184.704);
+    --discipline-3: oklch(0.398 0.07 227.392);
+    --discipline-4: oklch(0.828 0.189 84.429);
+    --discipline-5: oklch(0.769 0.188 70.08);
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -118,6 +128,11 @@ code {
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
+    --discipline-1: oklch(0.488 0.243 264.376);
+    --discipline-2: oklch(0.696 0.17 162.48);
+    --discipline-3: oklch(0.769 0.188 70.08);
+    --discipline-4: oklch(0.627 0.265 303.9);
+    --discipline-5: oklch(0.645 0.246 16.439);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
