@@ -5,6 +5,8 @@ import ProjectCreationWizard from '../components/ProjectCreationWizard';
 import DisciplineRegister from '../components/DisciplineRegister';
 import DashboardView from '../components/DashboardView';
 import KanbanView from '../components/KanbanView';
+import DisciplineRoster from './DisciplineRoster';
+import DCCQueue from './DCCQueue';
 
 const PMFusionApp = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -356,16 +358,18 @@ const PMFusionApp = () => {
       dashboard: 'Dashboard',
       projects: 'Projects',
       disciplines: 'Disciplines',
+      roster: 'Roster',
       kanban: 'Team Workspace',
-      documents: 'Document Control'
+      documents: 'Document Control',
+      dccQueue: 'DCC Queue'
     };
 
     const ROLE_VIEWS = {
-      admin: ['dashboard', 'projects', 'disciplines', 'kanban', 'documents'],
+      admin: ['dashboard', 'projects', 'disciplines', 'roster', 'kanban', 'documents', 'dccQueue'],
       scheduler: ['dashboard', 'projects', 'disciplines', 'kanban', 'documents'],
       team_lead: ['dashboard', 'kanban', 'documents'],
       team_member: ['dashboard', 'kanban'],
-      dcc: ['dashboard', 'documents'],
+      dcc: ['dashboard', 'documents', 'dccQueue'],
       client: ['documents']
     };
 
@@ -669,6 +673,7 @@ const DocumentsView = () => {
         )}
         {currentView === 'projects' && <ProjectsView />}
         {currentView === 'disciplines' && <DisciplineRegister />}
+        {currentView === 'roster' && <DisciplineRoster />}
         {currentView === 'kanban' && (
           <KanbanView
             selectedProject={selectedProject}
@@ -681,6 +686,7 @@ const DocumentsView = () => {
           />
         )}
         {currentView === 'documents' && <DocumentsView />}
+        {currentView === 'dccQueue' && <DCCQueue />}
       </div>
     </div>
   );
