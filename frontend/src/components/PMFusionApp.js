@@ -430,6 +430,7 @@ const PMFusionApp = () => {
       </div>
     </nav>
   );
+  }
 
   const DashboardView = () => (
     <div className="space-y-6">

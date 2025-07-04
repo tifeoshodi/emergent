@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../lib/api';
 import { supabase } from '../lib/supabaseClient';
-<<<<<<<< HEAD:frontend/src/components/PMFusionApp.js
 import ProjectCreationWizard from './ProjectCreationWizard';
 import KanbanBoard from './KanbanBoard';
 import DisciplineRegister from './DisciplineRegister';
-========
-import ProjectCreationWizard from '../ProjectCreationWizard';
-import KanbanBoard from '../KanbanBoard';
-import DisciplineRegister from '../DisciplineRegister';
->>>>>>>> main:frontend/src/pages/PMFusionApp.js
 
 const PMFusionApp = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -433,6 +427,7 @@ const PMFusionApp = () => {
       </div>
     </nav>
   );
+  }
 
   const DashboardView = () => (
     <div className="space-y-6">
@@ -833,4 +828,4 @@ const PMFusionApp = () => {
   );
 };
 
-export default PMFusionApp; 
+export default PMFusionApp;

@@ -6,13 +6,13 @@ import { supabase } from "../lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
-<<<<<<< HEAD:frontend/src/pages/index.js
+
 import Components from "../components/Components";
 import WBSGenerator from "../components/WBSGenerator";
 
 // Import PMFusion Three-Phase Workflow Components
 import PMFusionApp from "../components/PMFusionApp";
-=======
+
 import Components from "./Components";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
@@ -23,7 +23,7 @@ import WBSGenerator from "./pages/WBSGenerator";
 
 // Import PMFusion Three-Phase Workflow Components
 import PMFusionApp from "./pages/PMFusionApp";
->>>>>>> main:frontend/src/App.js
+
 
 
 
