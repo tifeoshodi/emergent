@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
-import Components from '../Components';
+import { Icons } from '../components';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const API = `${BACKEND_URL}/api`;
@@ -85,7 +85,7 @@ const Dashboard = () => {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <Components.ProjectIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Icons.ProjectIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Projects Found</h3>
           <p className="text-gray-600 mb-4">Create your first project to view the dashboard</p>
           <Link
@@ -155,7 +155,7 @@ const Dashboard = () => {
                 <p className="text-white/80 text-sm font-medium">Total Tasks</p>
                 <p className="text-3xl font-bold text-white">{stats.total_tasks}</p>
               </div>
-              <Components.TaskIcon className="h-8 w-8 text-white/60" />
+              <Icons.TaskIcon className="h-8 w-8 text-white/60" />
             </div>
           </div>
         </div>
@@ -167,7 +167,7 @@ const Dashboard = () => {
                 <p className="text-white/80 text-sm font-medium">Completed</p>
                 <p className="text-3xl font-bold text-white">{stats.completed_tasks}</p>
               </div>
-              <Components.CompleteIcon className="h-8 w-8 text-white/60" />
+              <Icons.CompleteIcon className="h-8 w-8 text-white/60" />
             </div>
           </div>
         </div>
@@ -179,7 +179,7 @@ const Dashboard = () => {
                 <p className="text-white/80 text-sm font-medium">In Progress</p>
                 <p className="text-3xl font-bold text-white">{stats.in_progress_tasks}</p>
               </div>
-              <Components.ActiveIcon className="h-8 w-8 text-white/60" />
+              <Icons.ActiveIcon className="h-8 w-8 text-white/60" />
             </div>
           </div>
         </div>
@@ -191,7 +191,7 @@ const Dashboard = () => {
                 <p className="text-white/80 text-sm font-medium">Milestones</p>
                 <p className="text-3xl font-bold text-white">{stats.my_tasks}</p>
               </div>
-              <Components.MilestoneIcon className="h-8 w-8 text-white/60" />
+              <Icons.MilestoneIcon className="h-8 w-8 text-white/60" />
             </div>
           </div>
         </div>
@@ -218,9 +218,9 @@ const Dashboard = () => {
                 <div key={task.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                   <div className="flex items-center">
                     {task.is_milestone ? (
-                      <Components.MilestoneIcon className="h-4 w-4 text-yellow-600 mr-3" />
+                      <Icons.MilestoneIcon className="h-4 w-4 text-yellow-600 mr-3" />
                     ) : (
-                      <Components.TaskIcon className="h-4 w-4 text-gray-600 mr-3" />
+                      <Icons.TaskIcon className="h-4 w-4 text-gray-600 mr-3" />
                     )}
                     <div>
                       <p className="font-medium text-gray-900">{task.title}</p>
@@ -228,7 +228,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <Components.PriorityBadge priority={task.priority} />
+                    <UI.PriorityBadge priority={task.priority} />
                     {task.progress_percent !== undefined && (
                       <div className="mt-1 text-xs text-gray-600">{task.progress_percent}% complete</div>
                     )}
@@ -247,7 +247,7 @@ const Dashboard = () => {
               href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
-              <Components.TaskIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+              <Icons.TaskIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
               <p className="font-medium text-gray-900">Kanban Board</p>
               <p className="text-xs text-gray-600">Manage tasks</p>
             </Link>
@@ -256,7 +256,7 @@ const Dashboard = () => {
               href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
-              <Components.ChartIcon className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+              <Icons.ChartIcon className="h-8 w-8 text-purple-600 mx-auto mb-2" />
               <p className="font-medium text-gray-900">Gantt Chart</p>
               <p className="text-xs text-gray-600">Timeline view</p>
             </Link>
@@ -265,7 +265,7 @@ const Dashboard = () => {
               href="/projects"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
-              <Components.ResourceIcon className="h-8 w-8 text-green-600 mx-auto mb-2" />
+              <Icons.ResourceIcon className="h-8 w-8 text-green-600 mx-auto mb-2" />
               <p className="font-medium text-gray-900">Resources</p>
               <p className="text-xs text-gray-600">Team allocation</p>
             </Link>
@@ -274,7 +274,7 @@ const Dashboard = () => {
               href="/tasks"
               className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center"
             >
-              <Components.UserIcon className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+              <Icons.UserIcon className="h-8 w-8 text-orange-600 mx-auto mb-2" />
               <p className="font-medium text-gray-900">My Tasks</p>
               <p className="text-xs text-gray-600">Independent tasks</p>
             </Link>

@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
-import Components from "../components/Components";
+import { Icons, UI } from "../components";
 
 
 
@@ -284,7 +284,7 @@ const HomePage = () => {
                   <p className="text-white/80 text-sm font-medium">Total Projects</p>
                   <p className="text-3xl font-bold text-white">{stats.total_projects}</p>
                 </div>
-                <Components.ProjectIcon className="h-8 w-8 text-white/60" />
+                <Icons.ProjectIcon className="h-8 w-8 text-white/60" />
               </div>
             </div>
           </div>
@@ -296,7 +296,7 @@ const HomePage = () => {
                   <p className="text-white/80 text-sm font-medium">Active Projects</p>
                   <p className="text-3xl font-bold text-white">{stats.active_projects}</p>
                 </div>
-                <Components.ActiveIcon className="h-8 w-8 text-white/60" />
+                <Icons.ActiveIcon className="h-8 w-8 text-white/60" />
               </div>
             </div>
           </div>
@@ -308,7 +308,7 @@ const HomePage = () => {
                   <p className="text-white/80 text-sm font-medium">Total Tasks</p>
                   <p className="text-3xl font-bold text-white">{stats.total_tasks}</p>
                 </div>
-                <Components.TaskIcon className="h-8 w-8 text-white/60" />
+                <Icons.TaskIcon className="h-8 w-8 text-white/60" />
               </div>
             </div>
           </div>
@@ -320,7 +320,7 @@ const HomePage = () => {
                   <p className="text-white/80 text-sm font-medium">Completed Tasks</p>
                   <p className="text-3xl font-bold text-white">{stats.completed_tasks}</p>
                 </div>
-                <Components.CompleteIcon className="h-8 w-8 text-white/60" />
+                <Icons.CompleteIcon className="h-8 w-8 text-white/60" />
               </div>
             </div>
           </div>
@@ -339,9 +339,9 @@ const HomePage = () => {
                   <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center">
                       {item.type === 'project' ? (
-                        <Components.ProjectIcon className="h-5 w-5 text-purple-600 mr-3" />
+                        <Icons.ProjectIcon className="h-5 w-5 text-purple-600 mr-3" />
                       ) : (
-                        <Components.TaskIcon className="h-5 w-5 text-blue-600 mr-3" />
+                        <Icons.TaskIcon className="h-5 w-5 text-blue-600 mr-3" />
                       )}
                       <div>
                         <p className="font-medium text-gray-900">{item.title}</p>
@@ -364,28 +364,28 @@ const HomePage = () => {
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Key Features</h3>
             <div className="space-y-4">
               <div className="flex items-start">
-                <Components.ChartIcon className="h-6 w-6 text-purple-600 mr-3 mt-1" />
+                <Icons.ChartIcon className="h-6 w-6 text-purple-600 mr-3 mt-1" />
                 <div>
                   <h4 className="font-semibold text-gray-900">Gantt Chart Scheduling</h4>
                   <p className="text-sm text-gray-600">Visual project timelines with critical path analysis</p>
                 </div>
               </div>
               <div className="flex items-start">
-                <Components.TaskIcon className="h-6 w-6 text-blue-600 mr-3 mt-1" />
+                <Icons.TaskIcon className="h-6 w-6 text-blue-600 mr-3 mt-1" />
                 <div>
                   <h4 className="font-semibold text-gray-900">Agile Kanban Boards</h4>
                   <p className="text-sm text-gray-600">Flexible task management with drag-and-drop workflow</p>
                 </div>
               </div>
               <div className="flex items-start">
-                <Components.ResourceIcon className="h-6 w-6 text-green-600 mr-3 mt-1" />
+                <Icons.ResourceIcon className="h-6 w-6 text-green-600 mr-3 mt-1" />
                 <div>
                   <h4 className="font-semibold text-gray-900">Resource Management</h4>
                   <p className="text-sm text-gray-600">Track engineer allocation and utilization across projects</p>
                 </div>
               </div>
               <div className="flex items-start">
-                <Components.UserIcon className="h-6 w-6 text-orange-600 mr-3 mt-1" />
+                <Icons.UserIcon className="h-6 w-6 text-orange-600 mr-3 mt-1" />
                 <div>
                   <h4 className="font-semibold text-gray-900">EPC Team Structure</h4>
                   <p className="text-sm text-gray-600">Built for engineering hierarchies and disciplines</p>
@@ -663,7 +663,7 @@ const DocumentManagementPage = () => {
           onClick={() => setShowUploadModal(true)}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
         >
-          <Components.UploadIcon className="h-5 w-5 inline mr-2" />
+          <Icons.UploadIcon className="h-5 w-5 inline mr-2" />
           Upload Document
         </button>
       </div>
@@ -672,7 +672,7 @@ const DocumentManagementPage = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <div className="relative">
-            <Components.SearchIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <Icons.SearchIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search documents..."
@@ -734,7 +734,7 @@ const DocumentManagementPage = () => {
           {filteredDocuments.map(document => (
             <div key={document.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">
-                <Components.DocumentIcon className="h-8 w-8 text-purple-600 flex-shrink-0" />
+                <Icons.DocumentIcon className="h-8 w-8 text-purple-600 flex-shrink-0" />
                 <div className="flex gap-2">
                   {document.is_confidential && (
                     <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
@@ -746,7 +746,7 @@ const DocumentManagementPage = () => {
                     className="text-gray-400 hover:text-red-600 transition-colors"
                     title="Delete Document"
                   >
-                    <Components.DeleteIcon className="h-4 w-4" />
+                    <Icons.DeleteIcon className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -801,7 +801,7 @@ const DocumentManagementPage = () => {
                   onClick={() => handleDownload(document.id, document.file_name)}
                   className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-2 px-3 rounded-lg text-sm font-medium transition-colors"
                 >
-                  <Components.DownloadIcon className="h-4 w-4 inline mr-1" />
+                  <Icons.DownloadIcon className="h-4 w-4 inline mr-1" />
                   Download
                 </button>
 
@@ -811,7 +811,7 @@ const DocumentManagementPage = () => {
                     className="bg-green-100 hover:bg-green-200 text-green-700 py-2 px-3 rounded-lg text-sm font-medium transition-colors"
                     title="Approve Document"
                   >
-                    <Components.ApprovalIcon className="h-4 w-4" />
+                    <Icons.ApprovalIcon className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -855,7 +855,7 @@ const DocumentManagementPage = () => {
 
       {filteredDocuments.length === 0 && !loading && (
         <div className="text-center py-12">
-          <Components.DocumentIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Icons.DocumentIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             {documents.length === 0 ? "No Documents Yet" : "No Documents Found"}
           </h3>
@@ -1018,35 +1018,35 @@ const Navigation = ({ currentPage }) => {
                 href="/dashboard"
                 className={`nav-item ${currentPage === 'dashboard' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                <Icons.ChartIcon className="h-4 w-4 inline mr-1" />
                 Dashboard
               </Link>
               <Link
                 href="/tasks"
                 className={`nav-item ${currentPage === 'tasks' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.TaskIcon className="h-4 w-4 inline mr-1" />
+                <Icons.TaskIcon className="h-4 w-4 inline mr-1" />
                 Tasks
               </Link>
               <Link
                 href="/projects"
                 className={`nav-item ${currentPage === 'projects' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.ProjectIcon className="h-4 w-4 inline mr-1" />
+                <Icons.ProjectIcon className="h-4 w-4 inline mr-1" />
                 Projects
               </Link>
               <Link
                 href="/users"
                 className={`nav-item ${currentPage === 'users' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.UserIcon className="h-4 w-4 inline mr-1" />
+                <Icons.UserIcon className="h-4 w-4 inline mr-1" />
                 Team
               </Link>
               <Link
                 href="/documents"
                 className={`nav-item ${currentPage === 'documents' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
+                <Icons.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Documents
               </Link>
               {currentUser && currentUser.role === 'scheduler' && (
@@ -1054,7 +1054,7 @@ const Navigation = ({ currentPage }) => {
                   href="/wbs"
                   className={`nav-item ${currentPage === 'wbs' ? 'nav-item-active' : 'nav-item-inactive'}`}
                 >
-                  <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                  <Icons.ChartIcon className="h-4 w-4 inline mr-1" />
                   WBS Generator
                 </Link>
               )}
@@ -1062,14 +1062,14 @@ const Navigation = ({ currentPage }) => {
                 href="/dcc"
                 className={`nav-item ${currentPage === 'dcc' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.DocumentIcon className="h-4 w-4 inline mr-1" />
+                <Icons.DocumentIcon className="h-4 w-4 inline mr-1" />
                 Control Center
               </Link>
               <Link
                 href="/pmfusion"
                 className={`nav-item ${currentPage === 'pmfusion' ? 'nav-item-active' : 'nav-item-inactive'}`}
               >
-                <Components.ChartIcon className="h-4 w-4 inline mr-1" />
+                <Icons.ChartIcon className="h-4 w-4 inline mr-1" />
                 PMFusion Workflow
               </Link>
             </div>
@@ -1079,7 +1079,7 @@ const Navigation = ({ currentPage }) => {
               href="/"
               className="text-gray-500 hover:text-gray-700 text-sm font-medium"
             >
-              <Components.UserIcon className="h-4 w-4 inline mr-1" />
+              <Icons.UserIcon className="h-4 w-4 inline mr-1" />
               Home
             </Link>
           </div>
