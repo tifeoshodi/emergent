@@ -59,7 +59,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install playwright
+RUN pip install --root-user-action=ignore playwright
 RUN playwright install chromium
 RUN playwright install-deps
 
@@ -84,7 +84,7 @@ RUN rm -rf .git
 WORKDIR /app
 
 # Install dependencies from the new requirements file
-RUN pip install -r requirements.txt
+RUN pip install --root-user-action=ignore -r requirements.txt
 
 # Remove the new requirements.txt file
 RUN rm /app/requirements.txt
@@ -92,7 +92,7 @@ RUN rm /app/requirements.txt
 # Set up working directory for backend
 WORKDIR /app/backend
 
-RUN pip install -r requirements.txt
+RUN pip install --root-user-action=ignore -r requirements.txt
 RUN mkdir -p /app/backend/external_integrations
 RUN touch /app/backend/external_integrations/__init__.py
 
