@@ -39,3 +39,19 @@ docker-compose up
 ```
 
 The backend API will be accessible on `localhost:8001` and the frontend on `localhost:8080`.
+
+## Encrypted Environment Files
+
+This repository stores encrypted versions of the required `.env` files using `sops`.
+To decrypt them, run the following commands:
+
+```bash
+# Decrypt the root environment file
+sops -d .env.enc > .env
+
+# Backend and frontend environment files
+sops -d backend/.env.enc > backend/.env
+sops -d frontend/.env.enc > frontend/.env
+```
+
+After decrypting, you can run Docker Compose or other tooling that relies on these environment files.
