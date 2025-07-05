@@ -11,8 +11,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 import importlib
-
-from document_parser import parse_document as ocr_parse_document
 import jwt
 from dotenv import load_dotenv
 from fastapi import (
@@ -74,6 +72,14 @@ def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: lis
                 f"Primary path '{primary_path}': {primary_error}. "
                 f"Fallback path '{fallback_path}': {fallback_error}"
             )
+
+# Import the OCR document parser with a fallback to handle different package layouts
+ocr_imports = safe_import_with_fallbacks(
+    primary_path="backend.document_parser",
+    fallback_path="document_parser",
+    items=["parse_document"],
+)
+ocr_parse_document = ocr_imports["parse_document"]
 
 # Import supabase client components with clear fallback pattern
 logger.info("Importing Supabase client components...")
@@ -155,7 +161,10 @@ app = FastAPI()
 # Ensure WBS nodes are unique per project/task
 @app.on_event("startup")
 async def ensure_wbs_index() -> None:
-    await db.wbs.create_index([("project_id", 1), ("task_id", 1)], unique=True)
+    try:
+        await db.wbs.create_index([("project_id", 1), ("task_id", 1)], unique=True)
+    except Exception as e:
+        logger.warning(f"Skipping index creation due to database error: {e}")
 
 
 # Create a router with the /api prefix
