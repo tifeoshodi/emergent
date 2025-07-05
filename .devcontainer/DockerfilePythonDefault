@@ -31,7 +31,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install playwright
+RUN pip install --root-user-action=ignore playwright
 RUN playwright install
 RUN playwright install-deps
 
@@ -45,7 +45,7 @@ ENV VIRTUAL_ENV="/root/.venv"
 
 WORKDIR /app
 
-RUN python -m pip install typer uvicorn fastapi
+RUN python -m pip install --root-user-action=ignore typer uvicorn fastapi
 
 COPY .devcontainer/entrypoint.sh /entrypoint.sh
 COPY .devcontainer/playwright_test.py .devcontainer/playwright_test.py

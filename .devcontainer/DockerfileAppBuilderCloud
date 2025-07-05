@@ -63,7 +63,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install playwright
+RUN pip install --root-user-action=ignore playwright
 RUN playwright install chromium
 RUN playwright install-deps
 
@@ -94,7 +94,7 @@ RUN python -m venv /root/.venv --system-site-packages
 ENV PATH="/root/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/root/.venv"
 
-RUN pip install -r requirements.txt
+RUN pip install --root-user-action=ignore -r requirements.txt
 RUN mkdir -p /app/backend/external_integrations
 RUN touch /app/backend/external_integrations/__init__.py
 

@@ -21,12 +21,12 @@ fi
 # install python packages
 if [ -f requirements.txt ]; then
     echo "Installing Python packages from requirements.txt"
-    pip install -r requirements.txt
+    pip install --root-user-action=ignore -r requirements.txt
 fi
 
 if [ -f backend/requirements.txt ]; then
     echo "Installing Python packages from backend/requirements.txt"
-    pip install -r backend/requirements.txt
+    pip install --root-user-action=ignore -r backend/requirements.txt
 fi
 
 # install frontend dependencies if yarn is available
