@@ -25,10 +25,6 @@ make test
 This is equivalent to running `bash scripts/setup_env.sh` followed by
 `pytest -q`.
 
-## Environment Variables
-
-The backend reads an optional `API_VERSION` environment variable. This value is
-returned by the `/api/v2/health` endpoint and defaults to `"2.0"` when not set.
 
 ## Docker Compose
 
@@ -39,6 +35,17 @@ docker-compose up
 ```
 
 The backend API will be accessible on `localhost:8001` and the frontend on `localhost:8080`.
+
+## Live End-to-End Tests
+
+Run the full integration suite against the Docker stack with:
+
+```bash
+bash scripts/run_live_tests.sh
+```
+
+The script starts the containers, waits for the `/api/v2/health` endpoint to
+become available, executes `backend_test.py`, and then shuts everything down.
 
 ## Encrypted Environment Files
 
