@@ -29,3 +29,13 @@ This is equivalent to running `bash scripts/setup_env.sh` followed by
 
 The backend reads an optional `API_VERSION` environment variable. This value is
 returned by the `/api/v2/health` endpoint and defaults to `"2.0"` when not set.
+
+## Docker Compose
+
+To run the services with Docker Compose, ensure `.env` files exist at `backend/.env` and `frontend/.env`. Then start the stack:
+
+```bash
+docker-compose up
+```
+
+The backend API will be accessible on `localhost:8001` and the frontend on `localhost:8080`.
