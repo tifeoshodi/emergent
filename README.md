@@ -25,10 +25,6 @@ make test
 This is equivalent to running `bash scripts/setup_env.sh` followed by
 `pytest -q`.
 
-## Environment Variables
-
-The backend reads an optional `API_VERSION` environment variable. This value is
-returned by the `/api/v2/health` endpoint and defaults to `"2.0"` when not set.
 
 ## Docker Compose
 
@@ -50,3 +46,19 @@ bash scripts/run_live_tests.sh
 
 The script starts the containers, waits for the `/api/v2/health` endpoint to
 become available, executes `backend_test.py`, and then shuts everything down.
+
+## Encrypted Environment Files
+
+This repository stores encrypted versions of the required `.env` files using `sops`.
+To decrypt them, run the following commands:
+
+```bash
+# Decrypt the root environment file
+sops -d .env.enc > .env
+
+# Backend and frontend environment files
+sops -d backend/.env.enc > backend/.env
+sops -d frontend/.env.enc > frontend/.env
+```
+
+After decrypting, you can run Docker Compose or other tooling that relies on these environment files.

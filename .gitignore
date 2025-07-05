@@ -46,6 +46,10 @@ next-env.d.ts
 .env.staging
 .env.development
 
+# Allow encrypted environment files to be committed
+!.env.enc
+!**/.env.enc
+
 # BUT allow .env.example files (these are safe templates)
 !.env.example
 !**/.env.example
