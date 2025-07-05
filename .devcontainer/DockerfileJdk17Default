@@ -67,7 +67,7 @@ RUN python --version
 
 WORKDIR /app
 
-RUN python -m pip install typer
+RUN python -m pip install --root-user-action=ignore typer
 
 COPY .devcontainer/entrypoint.sh .devcontainer/entrypoint.sh
 RUN mkdir -p /root/.config/code-server

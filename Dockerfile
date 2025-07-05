@@ -15,7 +15,7 @@ FROM python:3.11-slim as backend
 WORKDIR /app
 COPY backend/ /app/
 RUN rm /app/.env
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 # Stage 3: Final Image
 FROM nginx:stable-alpine
@@ -30,7 +30,7 @@ RUN chmod +x /entrypoint.sh
 
 # Install Python and dependencies
 RUN apk add --no-cache python3 py3-pip \
-    && pip3 install --break-system-packages -r /backend/requirements.txt
+    && pip3 install --break-system-packages --root-user-action=ignore -r /backend/requirements.txt
 
 # Add env variables if needed
 ENV PYTHONUNBUFFERED=1
