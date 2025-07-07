@@ -29,14 +29,13 @@ if [ -f backend/requirements.txt ]; then
     pip install --root-user-action=ignore -r backend/requirements.txt
 fi
 
-# install frontend dependencies if yarn is available
+# install frontend dependencies if npm is available
 if [ -d frontend ]; then
-    if command -v yarn >/dev/null 2>&1; then
-        echo "Installing frontend packages with yarn (skip build)"
-        # Skip building native modules to avoid failures in restricted envs
-        (cd frontend && yarn install --mode=skip-build)
+    if command -v npm >/dev/null 2>&1; then
+        echo "Installing frontend packages with npm"
+        (cd frontend && npm install)
     else
-        echo "Yarn not found. Please install yarn to set up frontend dependencies."
+        echo "npm not found. Please install Node.js and npm to set up frontend dependencies."
     fi
 fi
 

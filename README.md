@@ -1,6 +1,6 @@
 # PMFusion - Project Management Platform
 
-This repository contains a full stack application with a FastAPI backend and a React frontend.
+This repository contains a full stack application with a FastAPI backend and a Next.js frontend.
 
 ## Setup
 
@@ -10,7 +10,7 @@ Use the provided setup script to install the project dependencies **before runni
 bash scripts/setup_env.sh
 ```
 
-The script installs Python packages listed in both `requirements.txt` files—including packages such as `motor`, `requests`, and `python-multipart`—and installs frontend dependencies via `yarn` if available.
+The script installs Python packages listed in both `requirements.txt` files—including packages such as `motor`, `requests`, and `python-multipart`—and installs frontend dependencies via `npm` if available.
 
 Running this script requires network access to fetch packages from external repositories.
 
