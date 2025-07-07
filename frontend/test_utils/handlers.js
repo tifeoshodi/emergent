@@ -51,7 +51,7 @@ export const handlers = [
   }),
 
   // Kanban drag
-  http.patch(`${API_V2}/tasks/:id`, async ({ params, request }) => {
+  http.put(`${API_V2}/tasks/:id`, async ({ params, request }) => {
     const body = await request.json();
     return HttpResponse.json({ id: params.id, ...body });
   }),
