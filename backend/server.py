@@ -26,6 +26,7 @@ from fastapi import (
 
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
 
 # Configure logging early so it's available for module-level imports
 logging.basicConfig(
@@ -320,6 +321,11 @@ class UserCreate(BaseModel):
     discipline: Optional[str] = None
     hourly_rate: Optional[float] = None
     availability: Optional[float] = 1.0
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 class Discipline(BaseModel):
@@ -800,6 +806,19 @@ async def remove_discipline_member(discipline_name: str, user_id: str):
 
 
 # User endpoints
+@api_router.post("/auth/login")
+async def login(credentials: LoginRequest):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase not configured")
+    try:
+        result = supabase.auth.sign_in_with_password(
+            {"email": credentials.email, "password": credentials.password}
+        )
+        return {"access_token": result.session.access_token}
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+
 @api_router.post("/users", response_model=User)
 async def create_user(user: UserCreate):
     user_dict = user.model_dump()
