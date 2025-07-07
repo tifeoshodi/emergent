@@ -19,6 +19,9 @@ export default function Home() {
       ) : (
         <p>Loading...</p>
       )}
+      <p>
+        <a href="/project-wizard" style={{ color: 'blue' }}>Start Project Wizard</a>
+      </p>
     </main>
   );
 }
