@@ -34,23 +34,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: list):
     """
     Safely import items with fallback paths and clear error reporting.
-    
+
     Args:
         primary_path: Primary module path to try first
         fallback_path: Fallback module path if primary fails
         items: List of item names to import
-        
+
     Returns:
         dict: Dictionary of imported items
-        
+
     Raises:
         ImportError: If both paths fail with detailed error information
     """
     logger.info(f"Attempting to import {items} from {primary_path}")
-    
+
     try:
         module = importlib.import_module(primary_path)
         imported_items = {item: getattr(module, item) for item in items}
@@ -58,7 +59,7 @@ def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: lis
         return imported_items
     except (ImportError, AttributeError) as primary_error:
         logger.warning(f"Primary import from {primary_path} failed: {primary_error}")
-        
+
         try:
             logger.info(f"Trying fallback import from {fallback_path}")
             module = importlib.import_module(fallback_path)
@@ -66,12 +67,15 @@ def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: lis
             logger.info(f"Successfully imported from fallback {fallback_path}")
             return imported_items
         except (ImportError, AttributeError) as fallback_error:
-            logger.error(f"Fallback import from {fallback_path} also failed: {fallback_error}")
+            logger.error(
+                f"Fallback import from {fallback_path} also failed: {fallback_error}"
+            )
             raise ImportError(
                 f"Failed to import {items}. "
                 f"Primary path '{primary_path}': {primary_error}. "
                 f"Fallback path '{fallback_path}': {fallback_error}"
             )
+
 
 # Import the OCR document parser with a fallback to handle different package layouts
 ocr_imports = safe_import_with_fallbacks(
@@ -84,21 +88,21 @@ ocr_parse_document = ocr_imports["parse_document"]
 # Import supabase client components with clear fallback pattern
 logger.info("Importing Supabase client components...")
 supabase_imports = safe_import_with_fallbacks(
-    primary_path='backend.external_integrations.supabase_client',
-    fallback_path='external_integrations.supabase_client',
-    items=['supabase', 'insert', 'select']
+    primary_path="backend.external_integrations.supabase_client",
+    fallback_path="external_integrations.supabase_client",
+    items=["supabase", "insert", "select"],
 )
-supabase = supabase_imports['supabase']
-insert = supabase_imports['insert'] 
-select = supabase_imports['select']
+supabase = supabase_imports["supabase"]
+insert = supabase_imports["insert"]
+select = supabase_imports["select"]
 
 # Import API routes with clear fallback pattern
 logger.info("Importing API routes...")
 try:
     # Try loading the api_routes module directly from the same directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    api_routes_path = os.path.join(current_dir, 'api_routes.py')
-    
+    api_routes_path = os.path.join(current_dir, "api_routes.py")
+
     if os.path.exists(api_routes_path):
         # Use importlib to load the module by file path
         spec = importlib.util.spec_from_file_location("api_routes", api_routes_path)
@@ -108,7 +112,7 @@ try:
         logger.info("Successfully imported API routes from file path")
     else:
         raise ImportError("api_routes.py not found")
-        
+
 except Exception as e:
     logger.warning(f"Failed to import API routes: {e}")
     # Create a dummy router if all imports fail
@@ -120,16 +124,17 @@ from typing import List, Optional, Dict
 from collections import deque
 from pymongo.client_session import ClientSession
 from starlette.middleware.cors import CORSMiddleware
+
 # Import dependency suggester with clear fallback pattern
 logger.info("Importing dependency suggester components...")
 dependency_suggester_imports = safe_import_with_fallbacks(
-    primary_path='backend.dependency_suggester',
-    fallback_path='dependency_suggester',
-    items=['DependencySuggestion', 'MinimalTask', 'propose_dependencies']
+    primary_path="backend.dependency_suggester",
+    fallback_path="dependency_suggester",
+    items=["DependencySuggestion", "MinimalTask", "propose_dependencies"],
 )
-DependencySuggestion = dependency_suggester_imports['DependencySuggestion']
-MinimalTask = dependency_suggester_imports['MinimalTask']
-propose_dependencies = dependency_suggester_imports['propose_dependencies']
+DependencySuggestion = dependency_suggester_imports["DependencySuggestion"]
+MinimalTask = dependency_suggester_imports["MinimalTask"]
+propose_dependencies = dependency_suggester_imports["propose_dependencies"]
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta, date
@@ -844,7 +849,9 @@ async def update_user(user_id: str, user_update: dict):
 
 # Project endpoints
 @api_router.post("/projects", response_model=Project)
-async def create_project(project: ProjectCreate, authorization: Optional[str] = Header(None)):
+async def create_project(
+    project: ProjectCreate, authorization: Optional[str] = Header(None)
+):
     # Verify project manager exists
     pm = await db.users.find_one({"id": project.project_manager_id})
     if not pm:
@@ -871,7 +878,9 @@ async def create_project(project: ProjectCreate, authorization: Optional[str] = 
 
 
 @api_router.get("/projects", response_model=List[Project])
-async def get_projects(source: str = "mongo", authorization: Optional[str] = Header(None)):
+async def get_projects(
+    source: str = "mongo", authorization: Optional[str] = Header(None)
+):
     if source == "supabase" and supabase and authorization:
         token = authorization.split(" ")[-1]
         try:
@@ -2193,14 +2202,14 @@ async def confirm_dependency_suggestions(
 
 # Epic endpoints
 @api_router.post("/epics", response_model=Epic)
-async def create_epic(epic: EpicCreate):
+async def create_epic(epic: EpicCreate, current_user: User = Depends(get_current_user)):
     # Verify project exists
     project = await db.projects.find_one({"id": epic.project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     epic_dict = epic.model_dump()
-    epic_dict["created_by"] = "default_user"  # TODO: Get from auth
+    epic_dict["created_by"] = current_user.id
     epic_obj = Epic(**epic_dict)
     await db.epics.insert_one(epic_obj.model_dump())
     return epic_obj
@@ -2259,14 +2268,16 @@ async def delete_epic(epic_id: str, current_user: User = Depends(get_current_use
 
 # Sprint endpoints
 @api_router.post("/sprints", response_model=Sprint)
-async def create_sprint(sprint: SprintCreate):
+async def create_sprint(
+    sprint: SprintCreate, current_user: User = Depends(get_current_user)
+):
     # Verify project exists
     project = await db.projects.find_one({"id": sprint.project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     sprint_dict = sprint.model_dump()
-    sprint_dict["created_by"] = "default_user"  # TODO: Get from auth
+    sprint_dict["created_by"] = current_user.id
     sprint_obj = Sprint(**sprint_dict)
     await db.sprints.insert_one(sprint_obj.model_dump())
     return sprint_obj
