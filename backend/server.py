@@ -6,7 +6,7 @@ import shutil
 import uuid
 import sys
 import types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -2386,10 +2386,13 @@ async def get_sprint_analytics(
             if isinstance(end_date_raw, datetime)
             else datetime.fromisoformat(str(end_date_raw))
         )
+
+        if start_date.tzinfo is not None or end_date.tzinfo is not None:
+            raise ValueError("Timezone-aware dates are not supported")
     except Exception as exc:
         logger.exception("Invalid sprint dates")
         raise HTTPException(
-            status_code=400, detail="Invalid sprint date format"
+            status_code=400, detail=f"Invalid sprint date format: {exc}"
         ) from exc
 
     tasks = await db.tasks.find(
@@ -2408,7 +2411,7 @@ async def get_sprint_analytics(
     total_tasks = len(tasks)
     completed_tasks = len([task for task in tasks if task.get("status") == "done"])
 
-    current_date = datetime.utcnow()
+    current_date = datetime.now(timezone.utc).replace(tzinfo=None)
 
     total_days = (end_date - start_date).days
     elapsed_days = max(0, (current_date - start_date).days)
@@ -2469,7 +2472,10 @@ def calculate_burndown_data(tasks, start_date, end_date):
                 "date": current_date.isoformat(),
                 "ideal_remaining": ideal_remaining,
                 "actual_remaining": (
-                    actual_remaining if current_date <= datetime.utcnow() else None
+                    actual_remaining
+                    if current_date
+                    <= datetime.now(timezone.utc).replace(tzinfo=None)
+                    else None
                 ),
             }
         )

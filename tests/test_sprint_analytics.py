@@ -11,6 +11,14 @@ def load_server(monkeypatch, sprint_data):
     sys.modules["document_parser"] = types.ModuleType("document_parser")
     sys.modules["document_parser"].parse_document = lambda *a, **k: None
 
+    # Dummy supabase client modules to avoid import errors
+    dummy_supabase = types.ModuleType("supabase_client")
+    dummy_supabase.supabase = None
+    dummy_supabase.insert = lambda *a, **k: None
+    dummy_supabase.select = lambda *a, **k: None
+    sys.modules["backend.external_integrations.supabase_client"] = dummy_supabase
+    sys.modules["external_integrations.supabase_client"] = dummy_supabase
+
     class DummyCursor:
         def __init__(self, result=None):
             self._result = result or []
@@ -102,4 +110,40 @@ def test_get_sprint_analytics_invalid_dates(monkeypatch):
         asyncio.run(server.get_sprint_analytics("s2", current_user=user))
 
     assert exc.value.status_code == 400
-    assert exc.value.detail == "Invalid sprint date format"
+    assert "Invalid sprint date format" in exc.value.detail
+
+
+def test_get_sprint_analytics_timezone_mismatch(monkeypatch):
+    server = load_server(
+        monkeypatch,
+        {
+            "id": "s3",
+            "start_date": "2024-06-01T00:00:00+00:00",
+            "end_date": "2024-06-10T00:00:00+00:00",
+        },
+    )
+
+    user = types.SimpleNamespace(discipline="eng")
+
+    with pytest.raises(server.HTTPException) as exc:
+        asyncio.run(server.get_sprint_analytics("s3", current_user=user))
+
+    assert exc.value.status_code == 400
+    assert "Invalid sprint date format" in exc.value.detail
+
+
+def test_get_sprint_analytics_valid(monkeypatch):
+    server = load_server(
+        monkeypatch,
+        {
+            "id": "s4",
+            "start_date": "2024-06-01",
+            "end_date": "2024-06-10",
+        },
+    )
+
+    user = types.SimpleNamespace(discipline="eng")
+
+    result = asyncio.run(server.get_sprint_analytics("s4", current_user=user))
+
+    assert result["sprint_id"] == "s4"
