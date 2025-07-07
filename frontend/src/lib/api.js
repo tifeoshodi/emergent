@@ -163,7 +163,7 @@ class PMFusionAPI {
 
   async updateTask(taskId, taskData) {
     return this.request(`/tasks/${taskId}`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(taskData),
     });
   }
