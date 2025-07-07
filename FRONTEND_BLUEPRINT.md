@@ -22,7 +22,7 @@ Success Criteria
 | Framework            | **Next.js 15 (Pages Router)**               | Already present – migrate to App Router later. |
 | Language              | TypeScript 5                                 | Incrementally adopt via `*.tsx` renames. |
 | Styling               | Tailwind 4 + shadcn/ui                       | Design tokens via CSS variables for disciplines. |
-| Data-layer            | Supabase JS v2 (+ Realtime), Axios ➜ **TanStack Query** | Normalised cache & optimistic updates. |
+| Data-layer            | Supabase JS v2 (+ Realtime) + **TanStack&nbsp;Query** (native `fetch`/`ky` under the hood) | Single source of truth; no Axios – all queries/mutations flow through TanStack Query hooks. |
 | State (client)        | React Context now ➜ **Zustand** for lightweight/global, **React Query** for async. |
 | Forms / Validation    | react-hook-form + zod                        | Consistent UX, instant validation. |
 | Drag & Drop           | @hello-pangea/dnd                            | Replace deprecated react-beautiful-dnd. |
@@ -57,11 +57,11 @@ frontend/
    │   ├─ projects/
    │   ├─ tasks/
    │   └─ dashboard/
-   ├─ components/          # shared (Button, Card…)
+   ├─ shared/              # globally-reuseable components (Button, Card…)
    │   ├─ ui/              # shadcn cloned primitives
    │   └─ layout/
    ├─ hooks/               # cross-feature logic (useAuth, useQuery…)
-   ├─ lib/                 # supabase, axios instance, constants
+   ├─ lib/                 # supabase, fetch wrapper, constants
    ├─ pages/               # keep Pages Router while migrating
    ├─ styles/              # global.css, tokens.css
    └─ types/               # zod schemas & TS types
@@ -142,9 +142,10 @@ Used via `text-[color:var(--discipline-mech)]` utilities (Tailwind arbitrary val
 |-------|------|-----------|
 | 0 | **Stabilise** | Fix Tailwind unknown-class & missing module errors; ensure pages build. |
 | 1 | **UI Kit & Tokens** | Extract shadcn primitives, set up tokens, replace inline styles, purge dead CSS. |
-| 2 | **Feature Slices** | Break `index.js` into `features/*`; add React Query, Zustand, zod types. |
-| 3 | **Realtime & Optimism** | Channel subscriptions for Kanban & DCC; optimistic drag-drop; offline queue. |
-| 4 | **App Router** | Migrate to `/app` directory; leverage React Server Components for heavy dashboards. |
+| 1.5 | **Spike (Risk-Assessment)** | 1-week technical spike to evaluate App Router & React Server Components feasibility; update roadmap accordingly. |
+| 2 | **Feature Slices** *(+1 wk buffer)* | Break `index.js` into `features/*`; add React Query, Zustand, zod types. |
+| 3 | **Realtime & Optimism** *(+1 wk buffer)* | Channel subscriptions for Kanban & DCC; optimistic drag-drop; offline queue. |
+| 4 | **App Router Migration** *(+2 wk buffer)* | Move to `/app` directory; leverage RSC; incremental rollout per spike findings. |
 | 5 | **Polish & PWA** | Add app-shell loading, service-worker, push notifications. |
 
 ---
