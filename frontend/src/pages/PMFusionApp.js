@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import ProjectCreationWizard from '../components/ProjectCreationWizard';
 import DisciplineRegister from '../components/DisciplineRegister';
 import DashboardView from '../components/DashboardView';
-import KanbanView from '../components/KanbanView';
+import KanbanView from '../features/kanban/KanbanView';
 import DisciplineRoster from './DisciplineRoster';
 import DCCQueue from './DCCQueue';
 
@@ -432,6 +432,7 @@ const PMFusionApp = () => {
       </div>
     </nav>
   );
+  };
 const ProjectsView = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -692,4 +693,4 @@ const DocumentsView = () => {
   );
 };
 
-export default PMFusionApp; 
+export default PMFusionApp;

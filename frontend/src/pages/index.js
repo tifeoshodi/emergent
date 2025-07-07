@@ -1,5 +1,4 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
-import "../styles/App.css";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import axios from "axios";

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from './ui';
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from '../../components/ui';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import pmfusionAPI from '../lib/api';
-import { supabase } from '../lib/supabaseClient';
+import pmfusionAPI from '../../lib/api';
+import { supabase } from '../../lib/supabaseClient';
 
 const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   const [kanbanData, setKanbanData] = useState({
