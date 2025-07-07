@@ -1537,6 +1537,13 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
 
     resource_summary = []
 
+    def _parse_float(value: object, message: str) -> float:
+        """Convert value to float or raise HTTP 400 with message."""
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=message) from exc
+
     for user in users:
         try:
             uid = user.get("id")
@@ -1547,21 +1554,17 @@ async def get_resources_overview(current_user: User = Depends(get_current_user))
             total_hours = 0.0
             for t in user_tasks:
                 est_raw = t.get("estimated_hours", 8)
-                try:
-                    est_hours = float(est_raw)
-                except (TypeError, ValueError) as exc:
-                    detail = (
-                        f"Invalid estimated_hours '{est_raw}' for task {t.get('id')}"
-                    )
-                    raise HTTPException(status_code=400, detail=detail) from exc
+                est_hours = _parse_float(
+                    est_raw,
+                    f"Invalid estimated_hours '{est_raw}' for task {t.get('id')}",
+                )
                 total_hours += est_hours
 
             avail_raw = user.get("availability", 1.0)
-            try:
-                user_availability = float(avail_raw) if avail_raw is not None else 0.0
-            except (TypeError, ValueError) as exc:
-                detail = f"Invalid availability '{avail_raw}' for user {uid}"
-                raise HTTPException(status_code=400, detail=detail) from exc
+            user_availability = _parse_float(
+                avail_raw,
+                f"Invalid availability '{avail_raw}' for user {uid}",
+            ) if avail_raw is not None else 0.0
 
             available_hours = 40 * user_availability
             utilization = (
