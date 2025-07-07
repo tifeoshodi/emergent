@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import KanbanBoard from '../components/KanbanBoard';
+import KanbanBoard from '../features/kanban/KanbanBoard';
 
 jest.mock('../lib/api', () => ({
   __esModule: true,

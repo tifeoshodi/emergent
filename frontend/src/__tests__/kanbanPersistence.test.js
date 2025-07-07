@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import KanbanBoard from '../components/KanbanBoard';
+import KanbanBoard from '../features/kanban/KanbanBoard';
 import pmfusionAPI from '../lib/api';
 
 jest.mock('../lib/supabaseClient', () => ({

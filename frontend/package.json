@@ -12,6 +12,7 @@
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@supabase/supabase-js": "^2.38.1",
+    "@tanstack/react-query": "^5.81.5",
     "@testing-library/dom": "^10.4.0",
     "axios": "^1.5.1",
     "class-variance-authority": "^0.7.1",
