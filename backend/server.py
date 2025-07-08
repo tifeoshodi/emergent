@@ -81,16 +81,6 @@ ocr_imports = safe_import_with_fallbacks(
 )
 ocr_parse_document = ocr_imports["parse_document"]
 
-# Import supabase client components with clear fallback pattern
-logger.info("Importing Supabase client components...")
-supabase_imports = safe_import_with_fallbacks(
-    primary_path='backend.external_integrations.supabase_client',
-    fallback_path='external_integrations.supabase_client',
-    items=['supabase', 'insert', 'select']
-)
-supabase = supabase_imports['supabase']
-insert = supabase_imports['insert'] 
-select = supabase_imports['select']
 
 # Import API routes with clear fallback pattern
 logger.info("Importing API routes...")
@@ -857,28 +847,11 @@ async def create_project(project: ProjectCreate, authorization: Optional[str] = 
     project_dict["status"] = ProjectStatus.PLANNING
     project_obj = Project(**project_dict)
     await db.projects.insert_one(project_obj.model_dump())
-    if supabase and authorization:
-        token = authorization.split(" ")[-1]
-        try:
-            claims = jwt.decode(token, options={"verify_signature": False})
-            data = project_obj.model_dump()
-            if claims.get("org_id") and not data.get("org_id"):
-                data["org_id"] = claims.get("org_id")
-            insert("projects", data, jwt=token)
-        except Exception as exc:
-            logger.warning(f"Supabase insert failed: {exc}")
     return project_obj
 
 
 @api_router.get("/projects", response_model=List[Project])
-async def get_projects(source: str = "mongo", authorization: Optional[str] = Header(None)):
-    if source == "supabase" and supabase and authorization:
-        token = authorization.split(" ")[-1]
-        try:
-            data = select("projects", jwt=token)
-            return [Project(**p) for p in data]
-        except Exception as exc:
-            logger.warning(f"Supabase select failed: {exc}")
+async def get_projects():
     projects = await db.projects.find().to_list(1000)
     return [Project(**project) for project in projects]
 

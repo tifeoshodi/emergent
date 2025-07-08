@@ -26,4 +26,3 @@ typer>=0.9.0
 pytesseract>=0.3.10
 pdf2image>=1.17.0
 Pillow>=10.0.0
-supabase>=2.4.5
