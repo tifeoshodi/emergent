@@ -19,7 +19,8 @@ const validateApiUrl = (url) => {
 // Get and validate API base URL
 const getValidatedApiUrl = () => {
   const envUrl = process.env.REACT_APP_BACKEND_URL;
-  const defaultUrl = 'http://localhost:8000/api/v2';
+  // Default to the v1 API running locally
+  const defaultUrl = 'http://localhost:8000/api';
   
   // First, try the environment variable
   if (envUrl && validateApiUrl(envUrl)) {

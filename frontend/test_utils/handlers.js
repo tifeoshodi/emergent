@@ -1,7 +1,7 @@
 const { http, HttpResponse } = require('msw');
 
 const API = 'http://localhost:8000/api';
-const API_V2 = 'http://localhost:8000/api/v2';
+const API_V2 = 'http://localhost:8000/api';
 
 export const handlers = [
   // Authentication

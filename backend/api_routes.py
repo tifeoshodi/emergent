@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/v2", tags=["pmfusion-workflow"])
+# Mount this router under the unified `/api` prefix
+router = APIRouter(prefix="/api", tags=["pmfusion-workflow"])
 
 class HealthResponse(BaseModel):
     """Response model for health check endpoint."""
