@@ -1,15 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
-
+let createClient;
 let supabase;
 
 try {
+  ({ createClient } = require('@supabase/supabase-js'));
   if (process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY) {
     supabase = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY);
   } else {
     supabase = null;
   }
 } catch (error) {
-  console.warn('Failed to initialize Supabase client:', error);
+  console.warn('Supabase client not available:', error);
   supabase = null;
 }
 
