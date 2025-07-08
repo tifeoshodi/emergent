@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import App, { AuthProvider } from '../pages/index';
+import App, { AuthProvider } from '../../pages/index';
 import Router from 'next/router';
 
 jest.mock('next/router', () => require('next-router-mock'));
