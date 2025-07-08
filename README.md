@@ -73,8 +73,7 @@ After decrypting, you can run Docker Compose or other tooling that relies on the
 The FastAPI backend is exposed under the `/api` prefix. When running the stack
 locally it is available at `http://localhost:8001/api`.
 
-The frontend no longer uses Supabase authentication. When visiting the app you
-will be presented with a simple login screen listing users fetched from
-`/api/users`. Selecting a user stores their ID in `localStorage` and all API
-requests must include this value in the `X-User-ID` header. Use the logout
-button to clear the stored ID.
+When opening the app you are presented with a simple login screen listing users
+fetched from `/api/users`. Selecting a user stores their ID in `localStorage`.
+Every API request must include this ID in the `X-User-ID` header. Use the
+logout button to clear the stored value.
