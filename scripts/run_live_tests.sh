@@ -12,7 +12,15 @@ docker-compose up -d
 
 # Wait for the API to become healthy
 echo "Waiting for backend health check..."
-until curl -sf http://localhost:8001/api/v2/health >/dev/null; do
+MAX_ATTEMPTS=30
+attempts=0
+until curl --max-time 2 -sf http://localhost:8001/api/health >/dev/null; do
+    attempts=$((attempts+1))
+    if [ "$attempts" -ge "$MAX_ATTEMPTS" ]; then
+        echo "Backend failed to respond after $MAX_ATTEMPTS attempts."
+        docker-compose down
+        exit 1
+    fi
     sleep 2
     echo "...still waiting"
 done
