@@ -10,9 +10,6 @@ jest.mock('../lib/api', () => ({
     generateProjectWBS: jest.fn().mockResolvedValue({})
   }
 }));
-jest.mock('../lib/supabaseClient', () => ({
-  supabase: { auth: { getSession: jest.fn().mockResolvedValue({ data: { session: null } }) } }
-}));
 
 const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from './ui';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import pmfusionAPI from '../lib/api';
-import { supabase } from '../lib/supabaseClient';
 
 const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   const [kanbanData, setKanbanData] = useState({
@@ -42,58 +41,6 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
     }
   }, [disciplineId, projectId]);
 
-  useEffect(() => {
-    if (!disciplineId || !projectId || !supabase || supabase.isMockClient) {
-      return;
-    }
-
-    const channel = supabase.channel(`tasks-${projectId}-${disciplineId}`);
-
-    const handleChange = (payload) => {
-      const task = payload.new;
-      if (!task || task.discipline_id !== disciplineId) return;
-
-      setKanbanData((prev) => {
-        const updated = { ...prev };
-        // Remove task from all columns
-        Object.keys(updated).forEach((col) => {
-          updated[col] = updated[col].filter((t) => t.id !== task.id);
-        });
-
-        const status = task.status || 'backlog';
-        if (!updated[status]) updated[status] = [];
-        updated[status] = [task, ...updated[status]];
-        return updated;
-      });
-    };
-
-    channel
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'tasks',
-          filter: `project_id=eq.${projectId},discipline_id=eq.${disciplineId}`,
-        },
-        handleChange
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'tasks',
-          filter: `project_id=eq.${projectId},discipline_id=eq.${disciplineId}`,
-        },
-        handleChange
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [disciplineId, projectId]);
 
   const loadKanbanData = async () => {
     setLoading(true);

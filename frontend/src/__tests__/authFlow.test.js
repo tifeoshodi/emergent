@@ -5,9 +5,6 @@ import App, { AuthProvider } from '../../pages/index';
 import Router from 'next/router';
 
 jest.mock('next/router', () => require('next-router-mock'));
-jest.mock('../lib/supabaseClient', () => ({
-  supabase: { auth: { getSession: jest.fn().mockResolvedValue({ data: { session: null } }) } }
-}));
 
 // Helper to render with provider
 const renderApp = () => render(

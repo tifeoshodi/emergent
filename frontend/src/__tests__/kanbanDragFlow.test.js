@@ -18,9 +18,6 @@ jest.mock('../lib/api', () => ({
     updateTaskStatus: jest.fn().mockResolvedValue({})
   }
 }));
-jest.mock('../lib/supabaseClient', () => ({
-  supabase: { auth: { getSession: jest.fn().mockResolvedValue({ data: { session: null } }) } }
-}));
 
 test.skip('dragging tasks across lanes via keyboard', async () => {
   render(<KanbanBoard />);
