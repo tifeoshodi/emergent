@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useState, useEffect, createContext, useContext } from 'react';
 import pmfusionAPI from '../src/lib/api';
+import Login from '../src/components/Login';
 
 export const AuthContext = createContext({ currentUser: null });
 
@@ -35,7 +36,7 @@ export const AuthProvider = ({ children }) => {
 };
 
 const Home = () => {
-  const { currentUser, logout } = useContext(AuthContext);
+  const { currentUser, login, logout } = useContext(AuthContext);
 
   return (
     <div className="p-6 space-y-4">
@@ -46,7 +47,7 @@ const Home = () => {
           <button onClick={logout}>Logout</button>
         </>
       ) : (
-        <p>Not logged in</p>
+        <Login onLogin={login} />
       )}
       <nav className="space-x-4">
         <Link href="/projects">Projects</Link>
