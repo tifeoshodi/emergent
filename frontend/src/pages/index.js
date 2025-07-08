@@ -3,7 +3,6 @@ import "../styles/App.css";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import axios from "axios";
-import { supabase } from "../lib/supabaseClient";
 
 // Set user ID after authentication
 // axios.defaults.headers.common["X-User-ID"] = authenticatedUserId;
@@ -20,25 +19,30 @@ export const AuthContext = createContext({ currentUser: null });
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
 
-  const login = async (id) => {
-    if (supabase && process.env.REACT_APP_SUPABASE_URL) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      axios.defaults.headers.common["X-User-ID"] = data.id;
-      setCurrentUser(data);
-    } else {
-      const res = await axios.get(`${API}/users/${id}`);
-      axios.defaults.headers.common["X-User-ID"] = res.data.id;
-      setCurrentUser(res.data);
+  useEffect(() => {
+    const storedId = localStorage.getItem("userId");
+    if (storedId) {
+      axios.get(`${API}/users/${storedId}`)
+        .then(res => {
+          axios.defaults.headers.common["X-User-ID"] = res.data.id;
+          setCurrentUser(res.data);
+        })
+        .catch(() => {
+          localStorage.removeItem("userId");
+        });
     }
+  }, []);
+
+  const login = async (id) => {
+    const res = await axios.get(`${API}/users/${id}`);
+    axios.defaults.headers.common["X-User-ID"] = res.data.id;
+    localStorage.setItem("userId", res.data.id);
+    setCurrentUser(res.data);
   };
 
   const logout = () => {
     delete axios.defaults.headers.common["X-User-ID"];
+    localStorage.removeItem("userId");
     setCurrentUser(null);
   };
 
@@ -52,9 +56,14 @@ export const AuthProvider = ({ children }) => {
 // Simple login page allowing user ID entry
 const LoginPage = () => {
   const [userId, setUserId] = useState("");
+  const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
   const { login } = useContext(AuthContext);
   const router = useRouter();
+
+  useEffect(() => {
+    axios.get(`${API}/users`).then(res => setUsers(res.data)).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,12 +80,16 @@ const LoginPage = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow w-72">
         <h2 className="mb-4 text-lg font-semibold text-center">Login</h2>
-        <input
+        <select
           className="border p-2 w-full mb-3"
-          placeholder="User ID"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-        />
+        >
+          <option value="">Select User</option>
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+          ))}
+        </select>
         {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
         <button
           type="submit"

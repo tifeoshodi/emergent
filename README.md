@@ -52,3 +52,7 @@ sops -d frontend/.env.enc > frontend/.env
 ```
 
 After decrypting, you can run Docker Compose or other tooling that relies on these environment files.
+
+## Authentication
+
+The frontend no longer uses Supabase authentication. When visiting the app you will be presented with a simple login screen listing users fetched from `/api/users`. Selecting a user stores their ID in `localStorage` and all API requests automatically include this value in the `X-User-ID` header. Use the logout button to clear the stored ID.

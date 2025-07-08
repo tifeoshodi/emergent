@@ -1,4 +1,5 @@
 // PMFusion Three-Phase Workflow API Client
+// Remaining supabase client is used only for real-time channels, not auth
 import { supabase } from './supabaseClient';
 
 // URL validation function
@@ -59,19 +60,11 @@ class PMFusionAPI {
 
   // Helper method to get auth headers
   async getAuthHeaders() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      return {
-        'Content-Type': 'application/json',
-        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : undefined
-      };
-    } catch (error) {
-      console.error('Error getting auth headers:', error);
-      return {
-        'Content-Type': 'application/json',
-        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : undefined
-      };
-    }
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    return {
+      'Content-Type': 'application/json',
+      ...(userId ? { 'X-User-ID': userId } : {})
+    };
   }
 
   // Generic API request method with timeout
