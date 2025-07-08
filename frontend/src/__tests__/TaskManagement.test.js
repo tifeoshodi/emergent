@@ -1,15 +1,18 @@
 import '@testing-library/jest-dom';
-import { BrowserRouter } from 'react-router-dom';
 import { render } from '@testing-library/react';
-import TaskManagement from '../pages/TaskManagement';
-import axios from 'axios';
+import TaskManagement from '../../pages/tasks';
+import pmfusionAPI from '../lib/api';
 import { act } from 'react-dom/test-utils';
 
-jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }));
+jest.mock('../lib/api', () => ({
+  __esModule: true,
+  default: {
+    request: jest.fn().mockResolvedValue([])
+  }
+}));
 
 test('task management renders without crashing', async () => {
-  axios.get.mockResolvedValue({ data: [] });
   await act(async () => {
-    render(<BrowserRouter><TaskManagement /></BrowserRouter>);
+    render(<TaskManagement />);
   });
 });
