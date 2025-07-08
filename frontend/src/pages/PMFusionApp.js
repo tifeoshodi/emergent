@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../lib/api';
-import { supabase } from '../lib/supabaseClient';
 import ProjectCreationWizard from '../components/ProjectCreationWizard';
 import DisciplineRegister from '../components/DisciplineRegister';
 import DashboardView from '../components/DashboardView';
@@ -42,151 +41,26 @@ const PMFusionApp = () => {
     }
   }, [currentUser]);
 
+  // Authentication disabled - simply mark auth as loaded
   const initializeAuth = async () => {
-    try {
-      // Get initial session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Error getting session:', error);
-      } else if (session?.user) {
-        await setUserFromSession(session);
-      }
-
-      // Listen for auth state changes
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log('Auth state changed:', event, session?.user?.email);
-          
-          if (event === 'SIGNED_IN' && session?.user) {
-            await setUserFromSession(session);
-          } else if (event === 'SIGNED_OUT') {
-            setCurrentUser(null);
-            setProjects([]);
-            setDisciplines([]);
-            setSelectedProject(null);
-            setSelectedDiscipline(null);
-          }
-        }
-      );
-
-      return () => {
-        subscription?.unsubscribe();
-      };
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-    } finally {
-      setAuthLoading(false);
-    }
+    setAuthLoading(false);
   };
 
-  const setUserFromSession = async (session) => {
-    try {
-      // Try to get user profile from our users table
-      const { data: userProfile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) {
-        // Only log if it's not a "no rows" error
-        const isNoRowsError = error.code === 'PGRST116' || error.message?.includes('No rows found');
-        if (!isNoRowsError) {
-          console.error('Error fetching user profile:', error);
-        }
-      }
-      // Set user data combining auth and profile info
-      const userData = {
-        id: session.user.id,
-        email: session.user.email,
-        name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.email,
-        role: userProfile?.role || 'team_member',
-        discipline_id: userProfile?.discipline_id || null,
-        org_id: userProfile?.org_id || null,
-        ...userProfile
-      };
-
-      setCurrentUser(userData);
-    } catch (error) {
-      console.error('Error setting user from session:', error);
-      // Fallback to basic user data from auth
-      setCurrentUser({
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.email,
-        role: 'team_member',
-        discipline_id: null,
-        org_id: null
-      });
-    }
-  };
+  // Placeholder when Supabase auth is disabled
+  const setUserFromSession = async () => {};
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoginError(null);
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginForm.email,
-        password: loginForm.password,
-      });
-
-      if (error) {
-        setLoginError(error.message);
-      } else {
-        setShowLogin(false);
-        setLoginForm({ email: '', password: '' });
-      }
-    } catch (error) {
-      setLoginError('An unexpected error occurred. Please try again.');
-      console.error('Login error:', error);
-    } finally {
-      setLoading(false);
-    }
+    setLoginError('Authentication disabled');
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setLoginError(null);
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: loginForm.email,
-        password: loginForm.password,
-        options: {
-          data: {
-            full_name: loginForm.email.split('@')[0] // Simple default name
-          }
-        }
-      });
-
-      if (error) {
-        setLoginError(error.message);
-      } else {
-        setLoginError(null);
-        alert('Registration successful! Please check your email to confirm your account.');
-        setIsRegistering(false);
-      }
-    } catch (error) {
-      setLoginError('An unexpected error occurred. Please try again.');
-      console.error('Register error:', error);
-    } finally {
-      setLoading(false);
-    }
+    setLoginError('Registration disabled');
   };
 
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Logout error:', error);
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    setCurrentUser(null);
   };
 
   const LoginForm = () => (
