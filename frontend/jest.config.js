@@ -5,7 +5,7 @@ const customConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jsdom',
   transformIgnorePatterns: [
-    '/node_modules/(?!(isows|@supabase)/)'
+    '/node_modules/(?!(isows)/)'
   ]
 };
 

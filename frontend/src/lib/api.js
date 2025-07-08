@@ -1,6 +1,4 @@
 // PMFusion Three-Phase Workflow API Client
-// Remaining supabase client is used only for real-time channels, not auth
-import { supabase } from './supabaseClient';
 
 // URL validation function
 const validateApiUrl = (url) => {
