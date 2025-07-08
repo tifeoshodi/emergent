@@ -1,16 +1,11 @@
 import '@testing-library/jest-dom';
-import { BrowserRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
-import Dashboard from '../pages/Dashboard';
+import Home from '../../pages/index';
 
-test('dashboard shows no projects message', async () => {
-  render(
-    <BrowserRouter>
-      <Dashboard />
-    </BrowserRouter>
-  );
+test('home page renders', async () => {
+  render(<Home />);
 
   await waitFor(() =>
-    expect(screen.getByText(/No Projects Found/i)).toBeInTheDocument()
+    expect(screen.getByText(/PMFusion/i)).toBeInTheDocument()
   );
 });
