@@ -17,6 +17,9 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   const [error, setError] = useState(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [announce, setAnnounce] = useState('');
+  const [disciplineUsers, setDisciplineUsers] = useState([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   // Define kanban columns
   const columns = [
@@ -30,16 +33,26 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   ];
 
   useEffect(() => {
-    // Only load kanban data if both disciplineId and projectId are provided
-    if (disciplineId && projectId) {
+    // Load kanban data if disciplineId is provided (projectId is optional)
+    if (disciplineId) {
       loadKanbanData();
+      loadDisciplineUsers();
     } else {
       setLoading(false);
-      setError('Missing discipline ID or project ID');
-      // Load mock data when IDs are missing
+      setError('Missing discipline ID');
+      // Load mock data when discipline ID is missing
       loadMockData();
     }
   }, [disciplineId, projectId]);
+
+  const loadDisciplineUsers = async () => {
+    try {
+      const users = await pmfusionAPI.getDisciplineUsers(disciplineId);
+      setDisciplineUsers(users);
+    } catch (error) {
+      console.error('Failed to load discipline users:', error);
+    }
+  };
 
 
   const loadKanbanData = async () => {
@@ -56,7 +69,7 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
         review_dcc: [],
         done: []
       };
-      setKanbanData(response.kanban || defaultKanbanStructure);
+      setKanbanData(response.board || defaultKanbanStructure);
     } catch (error) {
       console.error('Failed to load kanban data:', error);
       setError('Failed to load kanban data. Using demo data instead.');
@@ -87,21 +100,22 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
 
   // Handle refresh button click - check for necessary IDs first
   const handleRefresh = () => {
-    if (disciplineId && projectId) {
+    if (disciplineId) {
       loadKanbanData();
     } else {
-      console.warn('Cannot refresh: missing disciplineId or projectId');
-      setError('Cannot refresh: missing discipline ID or project ID');
+      console.warn('Cannot refresh: missing disciplineId');
+      setError('Cannot refresh: missing discipline ID');
       loadMockData();
     }
   };
 
   // Handle add task button click
   const handleAddTask = () => {
-    if (!disciplineId || !projectId) {
-      alert('Cannot add task: missing discipline ID or project ID');
+    if (!disciplineId) {
+      alert('Cannot add task: missing discipline ID');
       return;
     }
+    // Note: projectId is optional for discipline-wide kanban
     setShowAddTaskModal(true);
   };
 
@@ -126,6 +140,78 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
     setShowAddTaskModal(false);
   };
 
+  // Handle task assignment
+  const handleAssignTask = (task) => {
+    setSelectedTask(task);
+    setShowAssignModal(true);
+  };
+
+  const assignTask = async (userId) => {
+    if (!selectedTask) return;
+    
+    try {
+      await pmfusionAPI.assignTask(selectedTask.id, userId);
+      
+      // Find the assigned user name
+      const assignedUser = disciplineUsers.find(u => u.id === userId);
+      const assignedUserName = assignedUser ? assignedUser.name : 'Unknown User';
+      
+      // Update local state - move from backlog to todo if unassigned
+      setKanbanData(prev => {
+        const updated = { ...prev };
+        
+        // Find task in all columns
+        let taskFound = false;
+        let sourceColumn = null;
+        
+        for (const columnId of Object.keys(updated)) {
+          const taskIndex = updated[columnId].findIndex(t => t.id === selectedTask.id);
+          if (taskIndex !== -1) {
+            sourceColumn = columnId;
+            updated[columnId][taskIndex] = {
+              ...updated[columnId][taskIndex],
+              assigned_to: userId,
+              assignee_name: assignedUserName
+            };
+            
+            // Move from backlog to todo when assigned
+            if (columnId === 'backlog') {
+              const task = updated[columnId][taskIndex];
+              updated[columnId].splice(taskIndex, 1);
+              updated.todo.push(task);
+            }
+            
+            taskFound = true;
+            break;
+          }
+        }
+        
+        return taskFound ? updated : prev;
+      });
+      
+      setShowAssignModal(false);
+      setSelectedTask(null);
+      setAnnounce(`Task assigned to ${assignedUserName}`);
+    } catch (error) {
+      console.error('Failed to assign task:', error);
+      alert('Failed to assign task. Please try again.');
+    }
+  };
+
+  // Map frontend column names to backend status values
+  const mapColumnToStatus = (columnId) => {
+    const mapping = {
+      'backlog': 'todo',
+      'todo': 'todo',
+      'in_progress': 'in_progress',
+      'review_dic': 'review',
+      'review_idc': 'review',
+      'review_dcc': 'review',
+      'done': 'done'
+    };
+    return mapping[columnId] || columnId;
+  };
+
   const moveTaskKeyboard = (taskId, currentColumnId, destinationColumnId) => {
     setKanbanData(prev => {
       const updated = { ...prev };
@@ -136,7 +222,10 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
       updated[destinationColumnId] = [task, ...updated[destinationColumnId]];
       return updated;
     });
-    pmfusionAPI.updateTaskStatus(taskId, destinationColumnId).catch(() => {});
+    
+    // Convert frontend column to backend status
+    const backendStatus = mapColumnToStatus(destinationColumnId);
+    pmfusionAPI.updateTaskStatus(taskId, backendStatus).catch(() => {});
     setAnnounce(`Task moved to ${destinationColumnId}`);
   };
 
@@ -195,8 +284,10 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
     // Update task status on the server to keep UI and server data in sync
     const updateTaskOnServer = async () => {
       try {
-        await pmfusionAPI.updateTaskStatus(draggableId, destinationColumnId);
-        console.log(`Task ${draggableId} status updated to ${destinationColumnId} on server`);
+        // Convert frontend column to backend status
+        const backendStatus = mapColumnToStatus(destinationColumnId);
+        await pmfusionAPI.updateTaskStatus(draggableId, backendStatus);
+        console.log(`Task ${draggableId} status updated to ${backendStatus} (${destinationColumnId}) on server`);
         setAnnounce(`Task moved to ${destinationColumnId}`);
       } catch (error) {
         console.error('Failed to update task status on server:', error);
@@ -344,7 +435,21 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
             
             <div className="flex justify-between items-center text-xs text-gray-500">
               <span>{task.assignee_name || 'Unassigned'}</span>
-              {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>}
+              <div className="flex items-center gap-2">
+                {!task.assigned_to && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAssignTask(task);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 text-xs underline"
+                    title="Assign task"
+                  >
+                    Assign
+                  </button>
+                )}
+                {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>}
+              </div>
             </div>
           </div>
         )}
@@ -448,6 +553,48 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
 
       {/* Add Task Modal */}
       <AddTaskModal />
+
+      {/* Assignment Modal */}
+      {showAssignModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <h3 className="text-lg font-semibold">Assign Task</h3>
+              <p className="text-sm text-gray-600">{selectedTask.title}</p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Assign to:
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {disciplineUsers.map(user => (
+                    <button
+                      key={user.id}
+                      onClick={() => assignTask(user.id)}
+                      className="w-full text-left p-3 border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="font-medium text-gray-900">{user.name}</div>
+                      <div className="text-sm text-gray-500">{user.role} • {user.email}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowAssignModal(false);
+                      setSelectedTask(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Workflow Status Legend */}
       <div className="mb-4 p-3 bg-gray-50 rounded-lg">

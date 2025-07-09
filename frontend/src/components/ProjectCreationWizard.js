@@ -202,6 +202,24 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Helper function to check if form is valid (no side effects)
+  const isFormValid = () => {
+    // Basic validation without setting errors
+    if (!formData.name || formData.name.trim().length < 3) return false;
+    if (!formData.start_date || !formData.end_date) return false;
+    
+    // Validate date relationship
+    if (formData.start_date && formData.end_date) {
+      const startDate = new Date(formData.start_date);
+      const endDate = new Date(formData.end_date);
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        if (endDate <= startDate) return false;
+      }
+    }
+    
+    return true;
+  };
+
   // Enhanced form validation with comprehensive checks
   const validateForm = () => {
     const errors = [];
@@ -314,7 +332,8 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
       client_name: formData.client_name ? formData.client_name.trim() : '',
       start_date: formData.start_date,
       end_date: formData.end_date,
-      status: 'planning'
+      status: 'planning',
+      project_manager_id: 'aa83214c-367b-4231-a682-0bcc4417d954' // Demo user ID
     };
 
     setLoading(true);
@@ -389,6 +408,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
         start_date: formData.start_date,
         end_date: formData.end_date,
         status: 'planning',
+        project_manager_id: 'aa83214c-367b-4231-a682-0bcc4417d954', // Demo user ID
         dashboard_config: dashboardConfig,
         uploaded_files: uploadedFiles.map(file => ({
           id: file.id,
@@ -822,7 +842,7 @@ const ProjectCreationWizard = ({ onProjectCreated, onCancel }) => {
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
           
           {currentStep < 4 ? (
-            <Button onClick={nextStep} disabled={currentStep === 1 && !validateForm()}>
+            <Button onClick={nextStep} disabled={currentStep === 1 && !isFormValid()}>
               {currentStep === 3 ? 'Confirm & Continue' : 'Next'}
             </Button>
           ) : (

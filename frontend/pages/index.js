@@ -53,6 +53,7 @@ const Home = () => {
         <Link href="/projects">Projects</Link>
         <Link href="/tasks">Tasks</Link>
         <Link href="/kanban">Kanban</Link>
+        <Link href="/wbs">WBS</Link>
         <Link href="/document-control">Document Control</Link>
       </nav>
     </div>

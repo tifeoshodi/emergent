@@ -150,11 +150,56 @@ app = FastAPI()
 
 # Ensure WBS nodes are unique per project/task
 @app.on_event("startup")
-async def ensure_wbs_index() -> None:
+async def ensure_demo_users_and_wbs_index() -> None:
     try:
         await db.wbs.create_index([("project_id", 1), ("task_id", 1)], unique=True)
     except Exception as e:
         logger.warning(f"Skipping index creation due to database error: {e}")
+    
+    # Create demo users for testing assignment functionality
+    demo_users = [
+        {
+            "id": "aa83214c-367b-4231-a682-0bcc4417d954",
+            "name": "Demo Scheduler",
+            "email": "scheduler@demo.com",
+            "role": "scheduler",
+            "discipline": "demo",
+            "hourly_rate": 75.0,
+            "availability": 1.0,
+            "created_at": datetime.utcnow()
+        },
+        {
+            "id": "bb92325d-478c-5342-b793-1cdd5528e065",
+            "name": "Demo Engineer",
+            "email": "engineer@demo.com",
+            "role": "senior_engineer_1",
+            "discipline": "demo",
+            "hourly_rate": 65.0,
+            "availability": 1.0,
+            "created_at": datetime.utcnow()
+        },
+        {
+            "id": "cc03436e-589d-6453-c8a4-2dee6639f176",
+            "name": "Demo Team Leader",
+            "email": "teamlead@demo.com",
+            "role": "engineering_manager",
+            "discipline": "demo",
+            "hourly_rate": 85.0,
+            "availability": 1.0,
+            "created_at": datetime.utcnow()
+        }
+    ]
+    
+    try:
+        for user_data in demo_users:
+            existing = await db.users.find_one({"id": user_data["id"]})
+            if not existing:
+                await db.users.insert_one(user_data)
+                print(f"Created demo user: {user_data['name']}")
+            else:
+                print(f"Demo user exists: {user_data['name']}")
+    except Exception as e:
+        print(f"Error creating demo users: {e}")
 
 
 # Create a router with the /api prefix
@@ -816,6 +861,17 @@ async def get_user(user_id: str):
     return User(**user)
 
 
+@api_router.get("/disciplines/{discipline}/users", response_model=List[User])
+async def get_discipline_users(discipline: str, current_user: User = Depends(get_current_user)):
+    """Get all users in a specific discipline for task assignment."""
+    # Only allow users to see members of their own discipline
+    if current_user.discipline != discipline:
+        raise HTTPException(status_code=403, detail="Can only view users from your own discipline")
+    
+    users = await db.users.find({"discipline": discipline}).to_list(1000)
+    return [User(**user) for user in users]
+
+
 @api_router.put("/users/{user_id}", response_model=User)
 async def update_user(user_id: str, user_update: dict):
     user = await db.users.find_one({"id": user_id})
@@ -949,6 +1005,50 @@ async def get_task(task_id: str, current_user: User = Depends(get_current_user))
     return Task(**task)
 
 
+@api_router.put("/tasks/{task_id}/assign")
+async def assign_task(
+    task_id: str,
+    request_data: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Assign a task to a user and automatically move from backlog to todo."""
+    assigned_to = request_data.get("assigned_to")
+    if not assigned_to:
+        raise HTTPException(status_code=400, detail="assigned_to is required")
+    
+    # Verify the task exists and user has access
+    task = await db.tasks.find_one({"id": task_id, "discipline": current_user.discipline})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Verify the assigned user exists and is in the same discipline
+    assigned_user = await db.users.find_one({"id": assigned_to})
+    if not assigned_user:
+        raise HTTPException(status_code=404, detail="Assigned user not found")
+    
+    if assigned_user.get("discipline") != current_user.discipline:
+        raise HTTPException(status_code=403, detail="Can only assign tasks within your discipline")
+    
+    # Update task with assignment and move to todo status if it was unassigned
+    update_data = {
+        "assigned_to": assigned_to,
+        "updated_at": datetime.utcnow(),
+    }
+    
+    # If task is currently in todo status and unassigned, keep it in todo 
+    # (this will map to "todo" column in frontend due to assignment)
+    current_status = task.get("status", "todo")
+    if current_status == "todo" and task.get("assigned_to") is None:
+        # Task moves from backlog to todo when assigned
+        pass  # Keep status as "todo"
+    
+    await db.tasks.update_one({"id": task_id}, {"$set": update_data})
+    
+    # Get updated task
+    updated_task = await db.tasks.find_one({"id": task_id})
+    return Task(**updated_task)
+
+
 @api_router.put("/tasks/{task_id}", response_model=Task)
 async def update_task(
     task_id: str,
@@ -962,22 +1062,18 @@ async def update_task(
     update_data = {k: v for k, v in task_update.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
 
-    async with await client.start_session() as session:
-        async with session.start_transaction():
-            await db.tasks.update_one(
-                {"id": task_id}, {"$set": update_data}, session=session
+    # Update task without transactions for standalone MongoDB
+    await db.tasks.update_one({"id": task_id}, {"$set": update_data})
+    
+    # Try to update WBS if task belongs to a project
+    updated_task = await db.tasks.find_one({"id": task_id})
+    if updated_task and updated_task.get("project_id"):
+        try:
+            await _generate_project_wbs(updated_task["project_id"], current_user)
+        except Exception as e:
+            logging.error(
+                f"Failed to update WBS for project {updated_task.get('project_id')}: {e}"
             )
-
-            updated_task = await db.tasks.find_one({"id": task_id}, session=session)
-            if updated_task.get("project_id"):
-                try:
-                    await _generate_project_wbs(
-                        updated_task["project_id"], current_user, session=session
-                    )
-                except Exception as e:
-                    logging.error(
-                        f"Failed to update WBS for project {updated_task.get('project_id')}: {e}"
-                    )
     updated_task = await db.tasks.find_one({"id": task_id})
     return Task(**updated_task)
 
@@ -988,21 +1084,22 @@ async def delete_task(task_id: str, current_user: User = Depends(get_current_use
     if not task or task.get("discipline") != current_user.discipline:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    async with await client.start_session() as session:
-        async with session.start_transaction():
-            result = await db.tasks.delete_one({"id": task_id}, session=session)
-            if result.deleted_count == 0:
-                raise HTTPException(status_code=404, detail="Task not found")
-            await db.wbs.delete_one({"task_id": task_id}, session=session)
-            if task.get("project_id"):
-                try:
-                    await _generate_project_wbs(
-                        task["project_id"], current_user, session=session
-                    )
-                except Exception as e:
-                    logging.error(
-                        f"Failed to update WBS for project {task.get('project_id')}: {e}"
-                    )
+    # Delete task without transactions for standalone MongoDB
+    result = await db.tasks.delete_one({"id": task_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Delete associated WBS node
+    await db.wbs.delete_one({"task_id": task_id})
+    
+    # Try to update WBS if task belonged to a project
+    if task.get("project_id"):
+        try:
+            await _generate_project_wbs(task["project_id"], current_user)
+        except Exception as e:
+            logging.error(
+                f"Failed to update WBS for project {task.get('project_id')}: {e}"
+            )
     return {"message": "Task deleted successfully"}
 
 
@@ -1275,14 +1372,43 @@ async def get_project_kanban(
 
 # Discipline-wide kanban board
 @api_router.get("/disciplines/{discipline}/kanban")
-async def get_discipline_kanban(discipline: str):
+async def get_discipline_kanban(discipline: str, project_id: Optional[str] = None):
     """Return all tasks for a discipline grouped by status."""
-    tasks = await db.tasks.find({"discipline": discipline}).to_list(1000)
+    query = {"discipline": discipline}
+    # Only filter by project if a valid project_id is provided and it's not the default "demo"
+    if project_id and project_id != "demo" and project_id != "null":
+        query["project_id"] = project_id
+    
+    tasks = await db.tasks.find(query).to_list(1000)
 
-    board = {"todo": [], "in_progress": [], "review": [], "done": []}
+    board = {
+        "backlog": [],
+        "todo": [], 
+        "in_progress": [], 
+        "review_dic": [], 
+        "review_idc": [], 
+        "review_dcc": [], 
+        "done": []
+    }
     for task in tasks:
         task_obj = Task(**task)
-        board[task_obj.status.value].append(task_obj.model_dump())
+        status = task_obj.status.value
+        
+        # Map backend status to frontend columns
+        if status == "todo":
+            # Unassigned tasks go to backlog, assigned tasks go to todo
+            if task_obj.assigned_to is None:
+                status = "backlog"
+            else:
+                status = "todo"
+        elif status == "review":
+            # Default review tasks go to DIC review
+            status = "review_dic"
+        elif status not in board:
+            # Handle any unmapped statuses by putting them in backlog
+            status = "backlog"
+        
+        board[status].append(task_obj.model_dump())
 
     return {"discipline": discipline, "board": board}
 
@@ -1699,7 +1825,7 @@ async def _record_wbs_audit(
         "nodes": [n.model_dump() for n in nodes],
         "inference_logs": {"critical_path": critical_path, "metrics": metrics},
     }
-    await db.wbs_audit.insert_one(record, session=session)
+    await db.wbs_audit.insert_one(record)
 
 
 # Default grouping rules for building the WBS tree
@@ -1746,24 +1872,108 @@ def build_wbs_tree(tasks: List[Task], rules: Dict[str, Any]) -> Dict[str, List[T
 async def _generate_project_wbs(
     project_id: str, current_user: User, session: ClientSession | None = None
 ):
-    project = await db.projects.find_one({"id": project_id}, session=session)
+    project = await db.projects.find_one({"id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     tasks_data = await db.tasks.find(
-        {"project_id": project_id, "discipline": current_user.discipline},
-        session=session,
+        {"project_id": project_id, "discipline": current_user.discipline}
     ).to_list(1000)
     tasks = [Task(**t) for t in tasks_data]
-    if not tasks:
-        raise HTTPException(status_code=404, detail="No tasks found for project")
-
-    critical_path, metrics = _calculate_cpm(tasks)
-
-    await db.wbs.delete_many({"project_id": project_id}, session=session)
-
+    
+    # Clear existing WBS nodes
+    await db.wbs.delete_many({"project_id": project_id})
+    
     nodes = []
+    
+    # Handle empty projects by creating a default WBS structure
+    if not tasks:
+        # Create default WBS structure for new projects
+        default_groups = [
+            "Project Initiation",
+            "Planning & Design", 
+            "Engineering",
+            "Procurement",
+            "Construction",
+            "Commissioning",
+            "Project Closeout"
+        ]
+        
+        previous_task_id = None
+        cumulative_start = 0.0
+        
+        for g_idx, group_name in enumerate(default_groups, start=1):
+            # Generate unique task_id for group nodes to avoid duplicate key errors
+            group_task_id = f"group-{project_id}-{g_idx}"
+            
+            # Set up dependencies for sequential phases
+            predecessors = [previous_task_id] if previous_task_id else []
+            
+            # Create corresponding Task record for sync
+            task_data = {
+                "id": group_task_id,
+                "title": group_name,
+                "description": f"Default WBS phase for {group_name}",
+                "status": "todo",
+                "priority": "medium",
+                "project_id": project_id,
+                "phase": group_name,
+                "discipline": current_user.discipline,  # Set user's discipline
+                "created_by": current_user.id,
+                "duration_days": 30.0,  # Default duration
+                "predecessor_tasks": predecessors,
+                "is_milestone": True,  # WBS groups are milestones
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+            await db.tasks.insert_one(task_data)
+            
+            group_node = WBSNode(
+                project_id=project_id,
+                task_id=group_task_id,  # Use unique task_id instead of None
+                title=group_name,
+                duration_days=30.0,  # Match task duration
+                predecessors=predecessors,
+                dependency_metadata=[],
+                early_start=cumulative_start,
+                early_finish=cumulative_start + 30.0,
+                is_critical=True,  # Sequential phases are on critical path
+                created_by=current_user.id,
+                parent_id=None,
+                wbs_code=str(g_idx),
+                children=None,
+            )
+            await db.wbs.insert_one(group_node.model_dump())
+            nodes.append(group_node)
+            
+            # Set up for next iteration
+            previous_task_id = group_task_id
+            cumulative_start += 30.0
+        
+        # Record audit for default WBS creation
+        # Calculate critical path for the sequential default structure
+        critical_path = [node.task_id for node in nodes]  # All sequential phases are critical
+        metrics = {
+            node.task_id: {
+                "duration": node.duration_days,
+                "early_start": node.early_start,
+                "early_finish": node.early_finish,
+                "is_critical": node.is_critical
+            } for node in nodes
+        }
+        
+        await _record_wbs_audit(
+            project_id,
+            current_user.id,
+            nodes,
+            critical_path,
+            metrics,
+        )
+        
+        return nodes
 
+    # Existing logic for projects with tasks
+    critical_path, metrics = _calculate_cpm(tasks)
     grouped = build_wbs_tree(tasks, DEFAULT_WBS_RULES)
 
     for g_idx, (group_name, group_tasks) in enumerate(sorted(grouped.items()), start=1):
@@ -1782,7 +1992,7 @@ async def _generate_project_wbs(
             wbs_code=str(g_idx),
             children=None,
         )
-        await db.wbs.insert_one(group_node.model_dump(), session=session)
+        await db.wbs.insert_one(group_node.model_dump())
         nodes.append(group_node)
 
         for t_idx, t in enumerate(group_tasks, start=1):
@@ -1814,7 +2024,7 @@ async def _generate_project_wbs(
                 "wbs_group": group_name,
             }
             node = WBSNode(**node_data)
-            await db.wbs.insert_one(node.model_dump(), session=session)
+            await db.wbs.insert_one(node.model_dump())
             nodes.append(node)
 
     await _record_wbs_audit(
@@ -1823,7 +2033,6 @@ async def _generate_project_wbs(
         nodes,
         critical_path,
         metrics,
-        session=session,
     )
 
     return nodes
@@ -1838,6 +2047,70 @@ async def generate_project_wbs_endpoint(
             status_code=403, detail="Only schedulers can generate a WBS"
         )
     return await _generate_project_wbs(project_id, current_user)
+
+
+@api_router.post("/projects/{project_id}/wbs/sync-tasks")
+async def sync_tasks_from_wbs(
+    project_id: str, current_user: User = Depends(require_role(UserRole.SCHEDULER))
+):
+    """Sync tasks from WBS nodes for better integration between systems."""
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get WBS nodes for this project
+    wbs_nodes = await db.wbs.find({"project_id": project_id}).to_list(1000)
+    
+    synced_tasks = []
+    for node_data in wbs_nodes:
+        if node_data.get("task_id"):
+            # Check if task already exists
+            existing_task = await db.tasks.find_one({"id": node_data["task_id"]})
+            
+            if not existing_task:
+                # Create task from WBS node
+                task_data = {
+                    "id": node_data["task_id"],
+                    "title": node_data.get("title", ""),
+                    "description": f"Task created from WBS: {node_data.get('title', '')}",
+                    "status": "todo",
+                    "priority": "medium", 
+                    "project_id": project_id,
+                    "phase": node_data.get("wbs_group", node_data.get("title", "")),
+                    "discipline": current_user.discipline,  # Set user's discipline
+                    "created_by": current_user.id,
+                    "duration_days": node_data.get("duration_days", 0.0),
+                    "predecessor_tasks": node_data.get("predecessors", []),
+                    "is_milestone": node_data.get("parent_id") is None,  # Top-level nodes are milestones
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+                await db.tasks.insert_one(task_data)
+                # Remove MongoDB _id field for JSON serialization
+                task_data.pop('_id', None)
+                synced_tasks.append(task_data)
+            else:
+                # Update existing task with WBS information
+                update_data = {
+                    "duration_days": node_data.get("duration_days", existing_task.get("duration_days", 0.0)),
+                    "predecessor_tasks": node_data.get("predecessors", existing_task.get("predecessor_tasks", [])),
+                    "phase": node_data.get("wbs_group", existing_task.get("phase", "")),
+                    "discipline": current_user.discipline,  # Ensure discipline is set
+                    "updated_at": datetime.utcnow(),
+                }
+                await db.tasks.update_one(
+                    {"id": node_data["task_id"]}, 
+                    {"$set": update_data}
+                )
+                # Create a clean dict without MongoDB ObjectId for JSON serialization
+                clean_task = {**existing_task, **update_data}
+                clean_task.pop('_id', None)
+                synced_tasks.append(clean_task)
+    
+    return {
+        "message": f"Synced {len(synced_tasks)} tasks from WBS",
+        "synced_tasks": synced_tasks
+    }
 
 
 @api_router.get("/projects/{project_id}/wbs", response_model=List[WBSNode])

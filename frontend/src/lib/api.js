@@ -59,9 +59,12 @@ class PMFusionAPI {
   // Helper method to get auth headers
   async getAuthHeaders() {
     const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    // Use demo user as fallback if no user is logged in
+    const demoUserId = 'aa83214c-367b-4231-a682-0bcc4417d954';
+    
     return {
       'Content-Type': 'application/json',
-      ...(userId ? { 'X-User-ID': userId } : {})
+      'X-User-ID': userId || demoUserId
     };
   }
 
@@ -145,6 +148,28 @@ class PMFusionAPI {
     return this.request(`/projects/${projectId}/wbs`);
   }
 
+  async syncTasksFromWBS(projectId) {
+    return this.request(`/projects/${projectId}/wbs/sync-tasks`, {
+      method: 'POST',
+    });
+  }
+
+  async getTasks(projectId = null) {
+    const endpoint = projectId ? `/tasks?project_id=${projectId}` : '/tasks';
+    return this.request(endpoint);
+  }
+
+  async assignTask(taskId, assignedTo) {
+    return this.request(`/tasks/${taskId}/assign`, {
+      method: 'PUT',
+      body: JSON.stringify({ assigned_to: assignedTo }),
+    });
+  }
+
+  async getDisciplineUsers(discipline) {
+    return this.request(`/disciplines/${discipline}/users`);
+  }
+
   // ============================================================================
   // PHASE 2: TEAMS EXECUTION ENDPOINTS
   // ============================================================================
@@ -155,7 +180,7 @@ class PMFusionAPI {
 
   async updateTask(taskId, taskData) {
     return this.request(`/tasks/${taskId}`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(taskData),
     });
   }
