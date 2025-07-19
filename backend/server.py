@@ -142,19 +142,25 @@ client = AsyncIOMotorClient(
 )
 # fail fast during startup (optional but recommended)
 # await client.admin.command("ping")
+
 db = client[
     os.environ.get("DB_NAME", "pmfusion_db")
 ]  # Create the main app without a prefix
 app = FastAPI()
 
 
-# Ensure WBS nodes are unique per project/task
-@app.on_event("startup")
-async def ensure_demo_users_and_wbs_index() -> None:
+async def ensure_wbs_index() -> None:
+    """Ensure the unique index on the WBS collection exists."""
     try:
         await db.wbs.create_index([("project_id", 1), ("task_id", 1)], unique=True)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - optional in tests
         logger.warning(f"Skipping index creation due to database error: {e}")
+
+
+# Ensure WBS nodes are unique per project/task and create demo users
+@app.on_event("startup")
+async def ensure_demo_users_and_wbs_index() -> None:
+    await ensure_wbs_index()
     
     # Create demo users for testing assignment functionality
     demo_users = [
