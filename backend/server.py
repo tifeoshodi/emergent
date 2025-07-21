@@ -73,13 +73,31 @@ def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: lis
                 f"Fallback path '{fallback_path}': {fallback_error}"
             )
 
-# Import the OCR document parser with a fallback to handle different package layouts
-ocr_imports = safe_import_with_fallbacks(
+# Import the document parsing utilities with a fallback to handle different package layouts
+parser_imports = safe_import_with_fallbacks(
     primary_path="backend.document_parser",
     fallback_path="document_parser",
-    items=["parse_document"],
+    items=["parse_document", "extract_text", "parse_text"],
 )
-ocr_parse_document = ocr_imports["parse_document"]
+
+# Base functions from the bundled parser module
+_base_parse_document = parser_imports["parse_document"]
+_base_extract_text = parser_imports["extract_text"]
+_base_parse_text = parser_imports["parse_text"]
+
+
+def get_parse_document():
+    """Return the currently active ``parse_document`` implementation.
+
+    Tests may monkeypatch ``sys.modules['document_parser'].parse_document``.
+    This helper ensures the endpoint uses that patched function if present.
+    """
+
+    module = sys.modules.get("document_parser")
+    if module and hasattr(module, "parse_document"):
+        return module.parse_document
+    return _base_parse_document
+
 
 
 # Import API routes with clear fallback pattern
@@ -2809,7 +2827,19 @@ async def parse_document_endpoint(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        data = ocr_parse_document(temp_path)
+        # Use the new dispatcher which may invoke structured parsers
+        parse_document_func = get_parse_document()
+        data = parse_document_func(temp_path)
+
+        # If a PDF produced no tasks, attempt an OCR fallback using the base
+        # utilities.  This covers scanned PDFs that lack embedded text.
+        if extension.lower() == "pdf" and not data.get("tasks"):
+            try:
+                text = _base_extract_text(temp_path)
+                data = _base_parse_text(text)
+            except Exception as ocr_exc:  # pragma: no cover - optional deps
+                logger.error("OCR fallback failed: %s", ocr_exc)
+                raise
 
         # Use the provided discipline or fall back to the requesting user's
         # discipline. This ensures created tasks are automatically placed in the
