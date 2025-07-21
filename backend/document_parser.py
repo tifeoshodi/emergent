@@ -1,9 +1,32 @@
 from __future__ import annotations
+
 """Utility functions for parsing project documents."""
 
 import logging
 import uuid
 from datetime import datetime
+
+DATE_PATTERNS = [
+    "%Y-%m-%d",
+    "%d/%m/%Y",
+    "%m/%d/%Y",
+    "%d-%b-%Y",
+    "%d-%B-%Y",
+]
+
+
+def _parse_date(value: str) -> str:
+    """Parse common date formats and return ISO formatted string."""
+    value = str(value).strip()
+    for fmt in DATE_PATTERNS:
+        try:
+            return datetime.strptime(value, fmt).date().isoformat()
+        except Exception:
+            continue
+    logger.debug("Unable to parse date '%s' with known formats", value)
+    return value
+
+
 import re
 
 from pathlib import Path
@@ -31,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 # ------------------ OCR Helper Functions ------------------
 
+
 def _ocr_image(image: "Image.Image") -> str:
     if pytesseract is None or Image is None:
         raise RuntimeError("pytesseract is not installed")
@@ -57,18 +81,23 @@ def parse_text(text: str) -> Dict[str, List[Dict[str, str]]]:
     """Very naive parser that expects lines in 'task,resource,date' format."""
     tasks: List[Dict[str, str]] = []
     for line in text.splitlines():
-        parts = [p.strip() for p in line.split(',') if p.strip()]
+        parts = [p.strip() for p in line.split(",") if p.strip()]
         if len(parts) >= 3:
             task_name, resource, date = parts[:3]
-            tasks.append({
-                "task": task_name,
-                "resource": resource,
-                "planned_date": date,
-            })
+            tasks.append(
+                {
+                    "task": task_name,
+                    "resource": resource,
+                    "planned_date": _parse_date(date),
+                }
+            )
+        else:
+            logger.debug("Skipping malformed line: %s", line)
     return {"tasks": tasks}
 
 
 # ------------------ Structured Parsers ------------------
+
 
 def parse_sow_pdf(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
     """Parse a statement-of-work PDF file.
@@ -82,13 +111,20 @@ def parse_sow_pdf(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
     """
 
     if pdfplumber is None:
-        raise RuntimeError("pdfplumber is required to parse PDF files")
+        logger.warning(
+            "pdfplumber not available, falling back to OCR for %s", file_path
+        )
+        return parse_text(extract_text(file_path))
 
     text_parts: List[str] = []
-    with pdfplumber.open(str(file_path)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            text_parts.append(page_text)
+    try:
+        with pdfplumber.open(str(file_path)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                text_parts.append(page_text)
+    except Exception as exc:  # pragma: no cover - pdf read failures
+        logger.exception("PDF text extraction failed, falling back to OCR: %s", exc)
+        return parse_text(extract_text(file_path))
 
     text = "\n".join(text_parts)
 
@@ -120,9 +156,15 @@ def parse_sow_pdf(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
             continue
 
         if current_section is None:
+            logger.debug("Skipping line outside section: %s", line)
             continue
 
-        if not (line[0].isdigit() or line.lstrip().startswith("-") or line.lstrip().startswith("•")):
+        if not (
+            line[0].isdigit()
+            or line.lstrip().startswith("-")
+            or line.lstrip().startswith("•")
+        ):
+            logger.debug("Skipping non-task line: %s", line)
             continue
 
         # Remove numbering/bullet characters
@@ -150,12 +192,14 @@ def parse_sow_pdf(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
                 discipline = value
                 break
 
-        tasks.append({
-            "task_id": task_id,
-            "title": title,
-            "discipline": discipline,
-            "description": desc,
-        })
+        tasks.append(
+            {
+                "task_id": task_id,
+                "title": title,
+                "discipline": discipline,
+                "description": desc,
+            }
+        )
 
     return {"tasks": tasks}
 
@@ -184,6 +228,7 @@ def parse_mdr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
 
         # drop completely blank sheets
         if df.dropna(how="all").empty:
+            logger.debug("Skipping blank sheet: %s", sheet_name)
             continue
 
         # normalise column names
@@ -192,25 +237,33 @@ def parse_mdr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
         required = {"document title", "discipline", "planned issue date"}
         if not required.issubset(df.columns):
             # skip sheets without the required headers
+            logger.debug("Skipping sheet missing required headers: %s", sheet_name)
             continue
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             title = str(row.get("document title", "")).strip()
             discipline = str(row.get("discipline", "")).strip()
             due_raw = row.get("planned issue date")
 
-            if not title and not discipline and (pd.isna(due_raw) or str(due_raw).strip() == ""):
+            if (
+                not title
+                and not discipline
+                and (pd.isna(due_raw) or str(due_raw).strip() == "")
+            ):
+                logger.debug("Skipping empty row %s in sheet %s", idx, sheet_name)
                 continue
 
             due_date = ""
             if not pd.isna(due_raw) and str(due_raw).strip():
                 try:
-                    parsed = pd.to_datetime(due_raw)
-                    if isinstance(parsed, datetime):
-                        due_date = parsed.date().isoformat()
-                    else:
-                        due_date = parsed.isoformat()
+                    due_date = _parse_date(due_raw)
                 except Exception:
+                    logger.debug(
+                        "Failed to parse date '%s' in row %s of sheet %s",
+                        due_raw,
+                        idx,
+                        sheet_name,
+                    )
                     due_date = str(due_raw)
 
             tasks.append(
@@ -253,6 +306,7 @@ def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
 
         # ignore completely empty sheets
         if df.dropna(how="all").empty:
+            logger.debug("Skipping blank sheet: %s", sheet_name)
             continue
 
         # normalise column names
@@ -260,6 +314,7 @@ def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
 
         name_col = next((c for c in df.columns if "task name" in c), None)
         if not name_col:
+            logger.debug("Skipping sheet %s without task name column", sheet_name)
             continue
 
         duration_col = next((c for c in df.columns if "duration" in c), None)
@@ -270,9 +325,12 @@ def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
             None,
         )
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             raw_name = str(row.get(name_col, "")).rstrip()
-            if not raw_name and all(pd.isna(row.get(c)) for c in [duration_col, cost_col]):
+            if not raw_name and all(
+                pd.isna(row.get(c)) for c in [duration_col, cost_col]
+            ):
+                logger.debug("Skipping empty row %s in sheet %s", idx, sheet_name)
                 continue
 
             wbs_code = ""
@@ -304,7 +362,9 @@ def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
             if duration_col:
                 duration_val = pd.to_numeric(row.get(duration_col), errors="coerce")
                 if pd.api.types.is_timedelta64_dtype(row.get(duration_col)):
-                    duration_val = float(pd.to_timedelta(duration_val).dt.total_seconds() / 86400)
+                    duration_val = float(
+                        pd.to_timedelta(duration_val).dt.total_seconds() / 86400
+                    )
                 if pd.isna(duration_val):
                     duration_val = None
 
@@ -332,6 +392,7 @@ def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
 
 
 # ------------------ Dispatching Logic ------------------
+
 
 def parse_document(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
     """Parse the provided document and return structured data.
