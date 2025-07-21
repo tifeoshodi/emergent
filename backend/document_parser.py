@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime
+import re
+
 from pathlib import Path
 from typing import Dict, List
 
@@ -18,6 +20,11 @@ try:
     from pdf2image import convert_from_path
 except Exception:  # pragma: no cover - optional dependency may be missing
     convert_from_path = None
+
+try:
+    import pdfplumber
+except Exception:  # pragma: no cover - optional dependency may be missing
+    pdfplumber = None
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +71,93 @@ def parse_text(text: str) -> Dict[str, List[Dict[str, str]]]:
 # ------------------ Structured Parsers ------------------
 
 def parse_sow_pdf(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
-    """Parse a statement-of-work PDF file."""
-    raise NotImplementedError("PDF parser not implemented")
+    """Parse a statement-of-work PDF file.
+
+    The parser uses ``pdfplumber`` to extract raw text from the PDF and then
+    performs some very lightweight heuristics to identify numbered or bulleted
+    items under the main SOW sections. The goal of this parser is not to be
+    perfect but to provide structured data that is easy to reason about in
+    tests.  Each extracted item becomes a task dictionary with ``task_id``,
+    ``title``, ``discipline`` and ``description`` fields.
+    """
+
+    if pdfplumber is None:
+        raise RuntimeError("pdfplumber is required to parse PDF files")
+
+    text_parts: List[str] = []
+    with pdfplumber.open(str(file_path)) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text() or ""
+            text_parts.append(page_text)
+
+    text = "\n".join(text_parts)
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    tasks: List[Dict[str, str]] = []
+    current_section: str | None = None
+
+    section_headers = {
+        "INTRODUCTION": "INTRODUCTION",
+        "SCOPE OF WORK": "SCOPE OF WORK",
+        "CONTRACTOR'S DELIVERABLES": "CONTRACTOR’S DELIVERABLES",
+        "CONTRACTOR’S DELIVERABLES": "CONTRACTOR’S DELIVERABLES",
+    }
+
+    discipline_map = {
+        "mechanical": "Mechanical",
+        "electrical": "Electrical",
+        "process": "Process",
+        "civil": "Civil",
+        "structural": "Structural",
+        "instrument": "Instrumentation",
+        "piping": "Piping",
+    }
+
+    for line in lines:
+        upper = line.upper()
+        if upper in section_headers:
+            current_section = section_headers[upper]
+            continue
+
+        if current_section is None:
+            continue
+
+        if not (line[0].isdigit() or line.lstrip().startswith("-") or line.lstrip().startswith("•")):
+            continue
+
+        # Remove numbering/bullet characters
+        cleaned = line.lstrip("-• ")
+        number_match = re.match(r"^(\d+(?:\.\d+)*)\s+(.*)", cleaned)
+        if number_match:
+            task_id, rest = number_match.groups()
+        else:
+            task_id = f"{len(tasks)+1}"
+            rest = cleaned
+
+        if " - " in rest:
+            title, desc = rest.split(" - ", 1)
+        elif ":" in rest:
+            title, desc = rest.split(":", 1)
+        else:
+            title, desc = rest, ""
+
+        title = title.strip()
+        desc = desc.strip()
+
+        discipline = None
+        for key, value in discipline_map.items():
+            if key in title.lower():
+                discipline = value
+                break
+
+        tasks.append({
+            "task_id": task_id,
+            "title": title,
+            "discipline": discipline,
+            "description": desc,
+        })
+
+    return {"tasks": tasks}
 
 
 def parse_mdr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
