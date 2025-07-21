@@ -226,8 +226,109 @@ def parse_mdr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
 
 
 def parse_ctr_excel(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
-    """Parse a cost time resource Excel file."""
-    raise NotImplementedError("CTR Excel parser not implemented")
+    """Parse a cost time resource Excel file.
+
+    The parser reads all sheets in the workbook with :mod:`pandas` and extracts
+    the ``Task Name``, ``Duration``, ``Cost`` and ``Resource`` columns.  WBS
+    hierarchy is reconstructed from an explicit ``WBS`` column, numeric
+    prefixes or indentation in the task name.  Durations and costs are converted
+    to numeric types and any date values encountered are normalised to ISO
+    format.  Each row becomes a task dictionary with ``task_id`` (the WBS
+    identifier), ``title`` (task name without numbering), ``duration``, ``cost``
+    and ``resource`` fields.
+    """
+
+    try:  # Import here so pandas becomes an optional dependency
+        import pandas as pd
+    except Exception as exc:  # pragma: no cover - optional dependency may be missing
+        raise RuntimeError("pandas is required to parse Excel files") from exc
+
+    tasks: List[Dict[str, str | float]] = []
+
+    xls = pd.ExcelFile(file_path)
+    counters: List[int] = []  # used when deriving numbering from indentation
+
+    for sheet_name in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=sheet_name)
+
+        # ignore completely empty sheets
+        if df.dropna(how="all").empty:
+            continue
+
+        # normalise column names
+        df.columns = [" ".join(str(c).split()).lower() for c in df.columns]
+
+        name_col = next((c for c in df.columns if "task name" in c), None)
+        if not name_col:
+            continue
+
+        duration_col = next((c for c in df.columns if "duration" in c), None)
+        cost_col = next((c for c in df.columns if "cost" in c), None)
+        resource_col = next((c for c in df.columns if "resource" in c), None)
+        wbs_col = next(
+            (c for c in df.columns if "wbs" in c or ("task" in c and "id" in c)),
+            None,
+        )
+
+        for _, row in df.iterrows():
+            raw_name = str(row.get(name_col, "")).rstrip()
+            if not raw_name and all(pd.isna(row.get(c)) for c in [duration_col, cost_col]):
+                continue
+
+            wbs_code = ""
+            title = raw_name
+
+            if wbs_col:
+                wbs_raw = row.get(wbs_col)
+                if not pd.isna(wbs_raw):
+                    wbs_code = str(wbs_raw).strip()
+
+            if not wbs_code:
+                match = re.match(r"^(\d+(?:\.\d+)*)\s+(.*)", raw_name)
+                if match:
+                    wbs_code, title = match.groups()
+                    counters = [int(p) for p in wbs_code.split(".")]
+                else:
+                    indent = len(raw_name) - len(raw_name.lstrip())
+                    level = max(indent // 2, 0)
+                    if level >= len(counters):
+                        counters.extend([0] * (level - len(counters) + 1))
+                    counters = counters[: level + 1]
+                    counters[level] += 1
+                    for i in range(level + 1, len(counters)):
+                        counters[i] = 0
+                    wbs_code = ".".join(str(c) for c in counters[: level + 1])
+                    title = raw_name.strip()
+
+            duration_val = None
+            if duration_col:
+                duration_val = pd.to_numeric(row.get(duration_col), errors="coerce")
+                if pd.api.types.is_timedelta64_dtype(row.get(duration_col)):
+                    duration_val = float(pd.to_timedelta(duration_val).dt.total_seconds() / 86400)
+                if pd.isna(duration_val):
+                    duration_val = None
+
+            cost_val = None
+            if cost_col:
+                cost_val = pd.to_numeric(row.get(cost_col), errors="coerce")
+                if pd.isna(cost_val):
+                    cost_val = None
+
+            resource_val = ""
+            if resource_col:
+                resource_val = str(row.get(resource_col) or "").strip()
+
+            tasks.append(
+                {
+                    "task_id": wbs_code or uuid.uuid4().hex,
+                    "title": title.strip(),
+                    "duration": duration_val,
+                    "cost": cost_val,
+                    "resource": resource_val,
+                }
+            )
+
+    return {"tasks": tasks}
 
 
 # ------------------ Dispatching Logic ------------------
