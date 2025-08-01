@@ -10,8 +10,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
-import importlib
-import jwt
+# JWT and importlib removed - not needed for MDR workflow
 from dotenv import load_dotenv
 from fastapi import (
     APIRouter,
@@ -73,30 +72,9 @@ def safe_import_with_fallbacks(primary_path: str, fallback_path: str, items: lis
                 f"Fallback path '{fallback_path}': {fallback_error}"
             )
 
-# Import the document parsing utilities with a fallback to handle different package layouts
-parser_imports = safe_import_with_fallbacks(
-    primary_path="backend.document_parser",
-    fallback_path="document_parser",
-    items=["parse_document", "extract_text", "parse_text"],
-)
-
-# Base functions from the bundled parser module
-_base_parse_document = parser_imports["parse_document"]
-_base_extract_text = parser_imports["extract_text"]
-_base_parse_text = parser_imports["parse_text"]
-
-
-def get_parse_document():
-    """Return the currently active ``parse_document`` implementation.
-
-    Tests may monkeypatch ``sys.modules['document_parser'].parse_document``.
-    This helper ensures the endpoint uses that patched function if present.
-    """
-
-    module = sys.modules.get("document_parser")
-    if module and hasattr(module, "parse_document"):
-        return module.parse_document
-    return _base_parse_document
+# MDR-specific imports for Excel processing
+import pandas as pd
+from datetime import date
 
 
 
@@ -128,16 +106,8 @@ from typing import List, Optional, Dict
 from collections import deque
 from pymongo.client_session import ClientSession
 from starlette.middleware.cors import CORSMiddleware
-# Import dependency suggester with clear fallback pattern
-logger.info("Importing dependency suggester components...")
-dependency_suggester_imports = safe_import_with_fallbacks(
-    primary_path='backend.dependency_suggester',
-    fallback_path='dependency_suggester',
-    items=['DependencySuggestion', 'MinimalTask', 'propose_dependencies']
-)
-DependencySuggestion = dependency_suggester_imports['DependencySuggestion']
-MinimalTask = dependency_suggester_imports['MinimalTask']
-propose_dependencies = dependency_suggester_imports['propose_dependencies']
+# Dependency suggestion functionality removed for MDR-focused workflow
+# MDR documents are typically independent deliverables without complex dependencies
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta, date
@@ -353,6 +323,28 @@ class DocumentCategory(str, Enum):
     MANUAL = "manual"
     CERTIFICATE = "certificate"
     OTHER = "other"
+
+
+class MDRStatus(str, Enum):
+    NOT_STARTED = "Not Started"
+    IN_PROGRESS = "In Progress"
+    UNDER_REVIEW = "Under Review"
+    APPROVED = "Approved"
+    COMPLETED = "Completed"
+
+
+class MDRDiscipline(str, Enum):
+    PROJECT_MANAGEMENT = "Project Management & Administration"
+    TECHNICAL_SAFETY = "Technical Safety"
+    PROCESS = "Process"
+    PIPING = "Piping"
+    INSTRUMENTATION = "Instrumentation"
+    ELECTRICAL = "Electrical"
+    STRUCTURAL = "Structural"
+    CIVIL = "Civil"
+    MECHANICAL = "Mechanical"
+    SAFETY = "Safety"
+    ENVIRONMENTAL = "Environmental"
 
 
 # Models
@@ -614,6 +606,70 @@ class TaskUpdate(BaseModel):
     tags: Optional[List[str]] = None
 
 
+# MDR-specific models
+class MDREntry(BaseModel):
+    """Model representing a single entry in the Master Document Register."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    doc_number: str  # e.g., "PMA-001", "TS-001"
+    doc_title: str  # e.g., "Project Basis of Design"
+    category: MDRDiscipline  # Discipline/Category from the MDR
+    status: MDRStatus
+    project_id: str
+    
+    # IFR (Information For Review) dates
+    ifr_planned_date: Optional[date] = None
+    ifr_actual_date: Optional[date] = None
+    
+    # IFA (Information For Approval) dates  
+    ifa_planned_date: Optional[date] = None
+    ifa_actual_date: Optional[date] = None
+    
+    # IFC (Information For Construction) dates
+    ifc_planned_date: Optional[date] = None
+    ifc_actual_date: Optional[date] = None
+    
+    remarks: Optional[str] = None
+    created_by: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MDRCreate(BaseModel):
+    """Model for creating a new MDR entry."""
+    doc_number: str
+    doc_title: str
+    category: MDRDiscipline
+    status: MDRStatus = MDRStatus.NOT_STARTED
+    project_id: str
+    ifr_planned_date: Optional[date] = None
+    ifa_planned_date: Optional[date] = None
+    ifc_planned_date: Optional[date] = None
+    remarks: Optional[str] = None
+
+
+class MDRUpdate(BaseModel):
+    """Model for updating an existing MDR entry."""
+    doc_title: Optional[str] = None
+    category: Optional[MDRDiscipline] = None
+    status: Optional[MDRStatus] = None
+    ifr_planned_date: Optional[date] = None
+    ifr_actual_date: Optional[date] = None
+    ifa_planned_date: Optional[date] = None
+    ifa_actual_date: Optional[date] = None
+    ifc_planned_date: Optional[date] = None
+    ifc_actual_date: Optional[date] = None
+    remarks: Optional[str] = None
+
+
+class MDRSummary(BaseModel):
+    """Summary statistics for MDR dashboard."""
+    total_documents: int
+    by_status: Dict[str, int]
+    by_discipline: Dict[str, int]
+    overdue_documents: int
+    upcoming_milestones: int
+
+
 # Dashboard stats model
 class DashboardStats(BaseModel):
     total_projects: int
@@ -687,10 +743,7 @@ class DependencyMetadata(BaseModel):
     status: DependencyStatus = DependencyStatus.PENDING
 
 
-class DependencyConfirmation(BaseModel):
-    from_task: str
-    to_task: str
-    accept: bool
+# DependencyConfirmation class removed - not needed for MDR workflow
 
 
 class WBSNode(BaseModel):
@@ -2392,73 +2445,8 @@ async def merge_tasks(
     return merged_task
 
 
-@api_router.get(
-    "/projects/{project_id}/dependency-suggestions",
-    response_model=List[DependencySuggestion],
-)
-async def get_dependency_suggestions(
-    project_id: str,
-    min_confidence: float = 0.0,
-    current_user: User = Depends(get_current_user),
-):
-    """Propose task dependencies for the given project."""
-    project = await db.projects.find_one({"id": project_id})
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    tasks_data = await db.tasks.find(
-        {"project_id": project_id, "discipline": current_user.discipline}
-    ).to_list(1000)
-
-    task_objs = [MinimalTask(**t) for t in tasks_data]
-    return propose_dependencies(task_objs, min_confidence=min_confidence)
-
-
-@api_router.post("/dependency-suggestions/confirm")
-async def confirm_dependency_suggestions(
-    confirmations: List[DependencyConfirmation],
-    current_user: User = Depends(get_current_user),
-):
-    """Accept or reject proposed dependencies."""
-    projects_to_update: set[str] = set()
-    for conf in confirmations:
-        task = await db.tasks.find_one(
-            {"id": conf.to_task, "discipline": current_user.discipline}
-        )
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        status = DependencyStatus.ACCEPTED if conf.accept else DependencyStatus.REJECTED
-
-        meta = DependencyMetadata(
-            predecessor_id=conf.from_task,
-            type="suggestion",
-            confidence=1.0,
-            created_by=current_user.id,
-            status=status,
-        ).model_dump()
-
-        await db.wbs.update_many(
-            {"task_id": conf.to_task}, {"$push": {"dependency_metadata": meta}}
-        )
-
-        if conf.accept:
-            preds = task.get("predecessor_tasks", [])
-            if conf.from_task not in preds:
-                preds.append(conf.from_task)
-                await db.tasks.update_one(
-                    {"id": conf.to_task}, {"$set": {"predecessor_tasks": preds}}
-                )
-                if task.get("project_id"):
-                    projects_to_update.add(task["project_id"])
-
-    for pid in projects_to_update:
-        try:
-            await _generate_project_wbs(pid, current_user)
-        except Exception as e:
-            logging.error(f"Failed to update WBS for project {pid}: {e}")
-
-    return {"updated": len(confirmations)}
+# Dependency suggestion endpoints removed for MDR-focused workflow
+# MDR documents typically don't require complex task dependencies
 
 
 # Epic endpoints
@@ -2810,110 +2798,443 @@ async def upload_document(
         )
 
 
-@api_router.post("/documents/parse")
-async def parse_document_endpoint(
+def parse_mdr_excel(file_path: Path) -> List[Dict[str, Any]]:
+    """
+    Parse MDR Excel file and extract document entries.
+    
+    Expected columns:
+    - Doc Number
+    - DOC Title  
+    - Category (or similar discipline column)
+    - Status
+    - IFR Date Planned, IFR Date Actual
+    - IFA Date Planned, IFA Date Actual  
+    - IFC Date Planned, IFC Date Actual
+    - Remarks (optional)
+    """
+    try:
+        # Read Excel file
+        df = pd.read_excel(file_path)
+        logger.info(f"Read Excel file with columns: {df.columns.tolist()}")
+        
+        # Normalize column names to handle variations
+        column_mapping = {}
+        for col in df.columns:
+            col_lower = col.lower().strip()
+            if 'doc number' in col_lower or 'doc_number' in col_lower:
+                column_mapping['doc_number'] = col
+            elif 'doc title' in col_lower or 'document title' in col_lower:
+                column_mapping['doc_title'] = col
+            elif 'category' in col_lower or 'discipline' in col_lower:
+                column_mapping['category'] = col
+            elif 'status' in col_lower:
+                column_mapping['status'] = col
+            elif 'ifr' in col_lower and 'planned' in col_lower:
+                column_mapping['ifr_planned'] = col
+            elif 'ifr' in col_lower and 'actual' in col_lower:
+                column_mapping['ifr_actual'] = col
+            elif 'ifa' in col_lower and 'planned' in col_lower:
+                column_mapping['ifa_planned'] = col
+            elif 'ifa' in col_lower and 'actual' in col_lower:
+                column_mapping['ifa_actual'] = col
+            elif 'ifc' in col_lower and 'planned' in col_lower:
+                column_mapping['ifc_planned'] = col
+            elif 'ifc' in col_lower and 'actual' in col_lower:
+                column_mapping['ifc_actual'] = col
+            elif 'remarks' in col_lower:
+                column_mapping['remarks'] = col
+        
+        logger.info(f"Column mapping: {column_mapping}")
+        
+        # Extract data
+        entries = []
+        for _, row in df.iterrows():
+            # Skip empty rows
+            if pd.isna(row.get(column_mapping.get('doc_number', ''), '')):
+                continue
+                
+            entry = {
+                'doc_number': str(row.get(column_mapping.get('doc_number', ''), '')).strip(),
+                'doc_title': str(row.get(column_mapping.get('doc_title', ''), '')).strip(),
+                'category': str(row.get(column_mapping.get('category', ''), '')).strip(),
+                'status': str(row.get(column_mapping.get('status', ''), 'Not Started')).strip(),
+            }
+            
+            # Handle date fields
+            for date_field in ['ifr_planned', 'ifr_actual', 'ifa_planned', 'ifa_actual', 'ifc_planned', 'ifc_actual']:
+                if date_field in column_mapping:
+                    date_val = row.get(column_mapping[date_field])
+                    if pd.notna(date_val) and date_val != '':
+                        try:
+                            if isinstance(date_val, str):
+                                # Try parsing common date formats
+                                entry[date_field] = pd.to_datetime(date_val).date()
+                            else:
+                                entry[date_field] = date_val.date() if hasattr(date_val, 'date') else date_val
+                        except:
+                            logger.warning(f"Could not parse date {date_val} for {date_field}")
+                            entry[date_field] = None
+                    else:
+                        entry[date_field] = None
+            
+            # Handle remarks
+            if 'remarks' in column_mapping:
+                remarks_val = row.get(column_mapping['remarks'])
+                entry['remarks'] = str(remarks_val).strip() if pd.notna(remarks_val) else None
+            
+            entries.append(entry)
+        
+        logger.info(f"Parsed {len(entries)} MDR entries")
+        return entries
+        
+    except Exception as e:
+        logger.error(f"Error parsing MDR Excel file: {e}")
+        raise
+
+
+def convert_mdr_to_kanban_activities(mdr_entries: List[Dict[str, Any]], project_id: str, created_by: str) -> List[Task]:
+    """
+    Convert MDR entries to Task objects for kanban boards, organized by discipline.
+    Each MDR entry becomes a task with the document number and title.
+    """
+    tasks = []
+    
+    # Map MDR status to TaskStatus
+    status_mapping = {
+        'Not Started': TaskStatus.TODO,
+        'In Progress': TaskStatus.IN_PROGRESS,
+        'Under Review': TaskStatus.REVIEW,
+        'Approved': TaskStatus.DONE,
+        'Completed': TaskStatus.DONE,
+    }
+    
+    # Map MDR categories to simplified discipline names
+    discipline_mapping = {
+        'Project Management & Administration': 'Project Management',
+        'Technical Safety': 'Safety',
+        'Process': 'Process',
+        'Piping': 'Piping',
+        'Instrumentation': 'Instrumentation',
+        'Electrical': 'Electrical',
+        'Structural': 'Structural',
+        'Civil': 'Civil',
+        'Mechanical': 'Mechanical',
+        'Safety': 'Safety',
+        'Environmental': 'Environmental',
+    }
+    
+    for entry in mdr_entries:
+        if not entry.get('doc_number') or not entry.get('doc_title'):
+            continue
+            
+        # Map status
+        mdr_status = entry.get('status', 'Not Started')
+        task_status = status_mapping.get(mdr_status, TaskStatus.TODO)
+        
+        # Map discipline
+        mdr_category = entry.get('category', '')
+        discipline = discipline_mapping.get(mdr_category, mdr_category)
+        
+        # Determine due date from IFC planned date (final milestone)
+        due_date = None
+        if entry.get('ifc_planned'):
+            due_date = datetime.combine(entry['ifc_planned'], datetime.min.time())
+        elif entry.get('ifa_planned'):
+            due_date = datetime.combine(entry['ifa_planned'], datetime.min.time())
+        elif entry.get('ifr_planned'):
+            due_date = datetime.combine(entry['ifr_planned'], datetime.min.time())
+        
+        # Create task
+        task_data = {
+            'title': f"{entry['doc_number']}: {entry['doc_title']}",
+            'description': f"Document: {entry['doc_title']}\nDocument Number: {entry['doc_number']}\nCategory: {mdr_category}",
+            'status': task_status,
+            'priority': TaskPriority.MEDIUM,
+            'project_id': project_id,
+            'discipline': discipline,
+            'created_by': created_by,
+            'due_date': due_date,
+            'tags': ['mdr', 'document', entry['doc_number'].split('-')[0].lower() if '-' in entry['doc_number'] else 'general']
+        }
+        
+        # Add remarks to description if present
+        if entry.get('remarks'):
+            task_data['description'] += f"\nRemarks: {entry['remarks']}"
+        
+        task = Task(**task_data)
+        tasks.append(task)
+    
+    return tasks
+
+
+@api_router.post("/mdr/upload")
+async def upload_mdr_excel(
     file: UploadFile = File(...),
-    project_id: Optional[str] = Form(None),
-    discipline: Optional[str] = Form(None),
+    project_id: str = Form(...),
     current_user: User = Depends(require_role(UserRole.SCHEDULER)),
 ):
-    """Upload a CTR/MDR file, apply OCR and create tasks from the result."""
+    """
+    Upload and process an MDR Excel file to create kanban activities per discipline.
+    """
     try:
+        # Validate file type
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+        
+        # Create temporary file
         documents_dir = ROOT_DIR / "documents"
         documents_dir.mkdir(exist_ok=True)
-        extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        temp_path = documents_dir / f"{uuid.uuid4()}.{extension}"
-
+        temp_path = documents_dir / f"mdr_{uuid.uuid4()}.xlsx"
+        
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
-        # Use the new dispatcher which may invoke structured parsers
-        parse_document_func = get_parse_document()
-        data = parse_document_func(temp_path)
-
-        # If a PDF produced no tasks, attempt an OCR fallback using the base
-        # utilities.  This covers scanned PDFs that lack embedded text.
-        if extension.lower() == "pdf" and not data.get("tasks"):
-            try:
-                text = _base_extract_text(temp_path)
-                data = _base_parse_text(text)
-            except Exception as ocr_exc:  # pragma: no cover - optional deps
-                logger.error("OCR fallback failed: %s", ocr_exc)
-                raise
-
-        # Use the provided discipline or fall back to the requesting user's
-        # discipline. This ensures created tasks are automatically placed in the
-        # correct backlog.
-        task_discipline = discipline or current_user.discipline
-
-        created_tasks: List[Task] = []
-        created_nodes: List[WBSNode] = []
-        for item in data.get("tasks", []):
-            task_data = {
-                "title": item.get("task", "Untitled Task"),
-                "description": f"Imported from {file.filename}",
-                "created_by": current_user.id,
-                "discipline": task_discipline,
-                "project_id": project_id,
-            }
-            date_str = item.get("planned_date")
-            if date_str:
-                try:
-                    task_data["due_date"] = datetime.fromisoformat(date_str)
-                except Exception:
-                    pass
-
-            task_obj = Task(**task_data)
-            await db.tasks.insert_one(task_obj.model_dump())
-
-            deps = [
-                DependencyMetadata(
-                    predecessor_id=p,
-                    type="predecessor",
-                    confidence=1.0,
-                    created_by=current_user.id,
-                    status=DependencyStatus.ACCEPTED,
-                ).model_dump()
-                for p in task_obj.predecessor_tasks
-            ]
-
-            node = WBSNode(
-                project_id=project_id or "",
-                task_id=task_obj.id,
-                title=task_obj.title,
-                duration_days=task_obj.duration_days or 1.0,
-                predecessors=task_obj.predecessor_tasks,
-                dependency_metadata=deps,
-                early_start=0.0,
-                early_finish=task_obj.duration_days or 1.0,
-                is_critical=False,
-                created_by=current_user.id,
-                parent_id=None,
-                wbs_code=str(len(created_tasks) + 1),
-                code=str(len(created_tasks) + 1),
-                children=None,
+        
+        # Parse MDR Excel file
+        mdr_entries = parse_mdr_excel(temp_path)
+        
+        if not mdr_entries:
+            raise HTTPException(status_code=400, detail="No valid MDR entries found in the Excel file")
+        
+        # Store MDR entries in database
+        created_mdr_entries = []
+        for entry_data in mdr_entries:
+            # Map category to MDRDiscipline enum
+            mdr_discipline = None
+            for disc in MDRDiscipline:
+                if disc.value.lower() == entry_data['category'].lower():
+                    mdr_discipline = disc
+                    break
+            
+            if not mdr_discipline:
+                # Default to PROJECT_MANAGEMENT if no match
+                mdr_discipline = MDRDiscipline.PROJECT_MANAGEMENT
+            
+            # Map status to MDRStatus enum
+            mdr_status = None
+            for status in MDRStatus:
+                if status.value.lower() == entry_data['status'].lower():
+                    mdr_status = status
+                    break
+            
+            if not mdr_status:
+                mdr_status = MDRStatus.NOT_STARTED
+            
+            mdr_entry = MDREntry(
+                doc_number=entry_data['doc_number'],
+                doc_title=entry_data['doc_title'],
+                category=mdr_discipline,
+                status=mdr_status,
+                project_id=project_id,
+                ifr_planned_date=entry_data.get('ifr_planned'),
+                ifr_actual_date=entry_data.get('ifr_actual'),
+                ifa_planned_date=entry_data.get('ifa_planned'),
+                ifa_actual_date=entry_data.get('ifa_actual'),
+                ifc_planned_date=entry_data.get('ifc_planned'),
+                ifc_actual_date=entry_data.get('ifc_actual'),
+                remarks=entry_data.get('remarks'),
+                created_by=current_user.id
             )
-            await db.wbs.insert_one(node.model_dump())
-            created_tasks.append(task_obj)
-            created_nodes.append(node)
-
-        data["created_tasks"] = [t.model_dump() for t in created_tasks]
-        if created_nodes:
-            await _record_wbs_audit(
-                project_id or "",
-                current_user.id,
-                created_nodes,
-                None,
-                None,
-            )
-        return data
+            
+            await db.mdr_entries.insert_one(mdr_entry.model_dump())
+            created_mdr_entries.append(mdr_entry)
+        
+        # Convert MDR entries to kanban activities
+        kanban_tasks = convert_mdr_to_kanban_activities(mdr_entries, project_id, current_user.id)
+        
+        # Store tasks in database
+        created_tasks = []
+        for task in kanban_tasks:
+            await db.tasks.insert_one(task.model_dump())
+            created_tasks.append(task)
+        
+        return {
+            "message": f"Successfully processed {len(mdr_entries)} MDR entries",
+            "mdr_entries_created": len(created_mdr_entries),
+            "kanban_tasks_created": len(created_tasks),
+            "entries": [entry.model_dump() for entry in created_mdr_entries],
+            "tasks": [task.model_dump() for task in created_tasks]
+        }
+        
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to parse document: {str(e)}"
-        )
+        logger.error(f"Error processing MDR file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process MDR file: {str(e)}")
     finally:
-        if "temp_path" in locals() and temp_path.exists():
+        # Clean up temporary file
+        if 'temp_path' in locals() and temp_path.exists():
             temp_path.unlink()
+
+
+@api_router.get("/mdr/entries/{project_id}")
+async def get_mdr_entries(
+    project_id: str,
+    discipline: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Get MDR entries for a project, optionally filtered by discipline and status."""
+    query = {"project_id": project_id}
+    
+    if discipline:
+        query["category"] = discipline
+    
+    if status:
+        query["status"] = status
+    
+    entries = await db.mdr_entries.find(query).to_list(1000)
+    return [MDREntry(**entry) for entry in entries]
+
+
+@api_router.get("/mdr/dashboard/{project_id}")
+async def get_mdr_dashboard(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get MDR dashboard statistics for a project."""
+    entries = await db.mdr_entries.find({"project_id": project_id}).to_list(1000)
+    
+    if not entries:
+        return MDRSummary(
+            total_documents=0,
+            by_status={},
+            by_discipline={},
+            overdue_documents=0,
+            upcoming_milestones=0
+        )
+    
+    # Calculate statistics
+    total_documents = len(entries)
+    by_status = {}
+    by_discipline = {}
+    overdue_documents = 0
+    upcoming_milestones = 0
+    
+    today = date.today()
+    
+    for entry in entries:
+        # Count by status
+        status = entry.get('status', 'Not Started')
+        by_status[status] = by_status.get(status, 0) + 1
+        
+        # Count by discipline
+        discipline = entry.get('category', 'Unknown')
+        by_discipline[discipline] = by_discipline.get(discipline, 0) + 1
+        
+        # Check for overdue documents
+        ifc_planned = entry.get('ifc_planned_date')
+        if ifc_planned and isinstance(ifc_planned, (date, str)):
+            if isinstance(ifc_planned, str):
+                try:
+                    ifc_planned = pd.to_datetime(ifc_planned).date()
+                except:
+                    continue
+            
+            if ifc_planned < today and entry.get('status') not in ['Completed', 'Approved']:
+                overdue_documents += 1
+        
+        # Check for upcoming milestones (next 30 days)
+        for date_field in ['ifr_planned_date', 'ifa_planned_date', 'ifc_planned_date']:
+            planned_date = entry.get(date_field)
+            if planned_date and isinstance(planned_date, (date, str)):
+                if isinstance(planned_date, str):
+                    try:
+                        planned_date = pd.to_datetime(planned_date).date()
+                    except:
+                        continue
+                
+                days_until = (planned_date - today).days
+                if 0 <= days_until <= 30:
+                    upcoming_milestones += 1
+                    break  # Only count once per document
+    
+    return MDRSummary(
+        total_documents=total_documents,
+        by_status=by_status,
+        by_discipline=by_discipline,
+        overdue_documents=overdue_documents,
+        upcoming_milestones=upcoming_milestones
+    )
+
+
+@api_router.put("/mdr/entries/{entry_id}")
+async def update_mdr_entry(
+    entry_id: str,
+    entry_update: MDRUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Update an existing MDR entry."""
+    existing_entry = await db.mdr_entries.find_one({"id": entry_id})
+    if not existing_entry:
+        raise HTTPException(status_code=404, detail="MDR entry not found")
+    
+    update_data = entry_update.model_dump(exclude_unset=True)
+    if update_data:
+        update_data["updated_at"] = datetime.utcnow()
+        await db.mdr_entries.update_one(
+            {"id": entry_id},
+            {"$set": update_data}
+        )
+    
+    updated_entry = await db.mdr_entries.find_one({"id": entry_id})
+    return MDREntry(**updated_entry)
+
+
+@api_router.delete("/mdr/entries/{entry_id}")
+async def delete_mdr_entry(
+    entry_id: str,
+    current_user: User = Depends(require_role(UserRole.SCHEDULER)),
+):
+    """Delete an MDR entry and its associated kanban task."""
+    # Find and delete the MDR entry
+    entry = await db.mdr_entries.find_one({"id": entry_id})
+    if not entry:
+        raise HTTPException(status_code=404, detail="MDR entry not found")
+    
+    # Delete associated tasks that were created from this MDR entry
+    await db.tasks.delete_many({
+        "title": {"$regex": f"^{entry['doc_number']}:"},
+        "tags": "mdr"
+    })
+    
+    # Delete the MDR entry
+    await db.mdr_entries.delete_one({"id": entry_id})
+    
+    return {"message": "MDR entry and associated tasks deleted successfully"}
+
+
+@api_router.get("/mdr/kanban/{project_id}")
+async def get_mdr_kanban_board(
+    project_id: str,
+    discipline: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Get MDR-based kanban board for a project, optionally filtered by discipline."""
+    query = {"project_id": project_id, "tags": "mdr"}
+    
+    if discipline:
+        query["discipline"] = discipline
+    
+    tasks = await db.tasks.find(query).to_list(1000)
+    
+    # Group tasks by status for kanban board
+    kanban_board = {
+        "todo": [],
+        "in_progress": [],
+        "review": [],
+        "done": []
+    }
+    
+    for task in tasks:
+        task_obj = Task(**task)
+        status_key = task_obj.status.value
+        if status_key in kanban_board:
+            kanban_board[status_key].append(task_obj.model_dump())
+    
+    return {
+        "project_id": project_id,
+        "discipline": discipline,
+        "board": kanban_board,
+        "total_documents": len(tasks)
+    }
 
 
 @api_router.get("/documents", response_model=List[Document])

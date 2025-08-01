@@ -10,11 +10,5 @@
     "files": [
       "static/chunks/_pages-dir-browser_node_modules_next_dist_pages__error_js.js"
     ]
-  },
-  "pages\\kanban.js -> ../src/components/KanbanBoard": {
-    "id": "pages\\kanban.js -> ../src/components/KanbanBoard",
-    "files": [
-      "static/chunks/_pages-dir-browser_src_components_KanbanBoard_js.js"
-    ]
   }
 }

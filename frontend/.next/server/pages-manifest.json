@@ -2,10 +2,5 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/project-details": "pages/project-details.js",
-  "/": "pages/index.js",
-  "/kanban": "pages/kanban.js",
-  "/tasks": "pages/tasks.js",
-  "/document-control": "pages/document-control.js",
-  "/projects": "pages/projects.js"
+  "/": "pages/index.js"
 }

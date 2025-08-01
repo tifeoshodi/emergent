@@ -1,0 +1,11 @@
+Document Title,Discipline,Planned Issue Date,Document Number,Status
+Process Flow Diagram,Process,2025-08-15,PFD-001,Draft
+Piping and Instrumentation Diagram,Process,2025-08-20,P&ID-001,In Review
+Electrical Single Line Diagram,Electrical,2025-08-25,SLD-001,Draft
+Structural Steel Drawings,Structural,2025-09-01,STR-001,Not Started
+Foundation Design Calculations,Civil,2025-08-30,CIV-001,In Progress
+Equipment Specifications,Mechanical,2025-09-05,SPEC-001,Draft
+Control System Architecture,Instrumentation,2025-09-10,CSA-001,Not Started
+Safety Instrumented System Design,Safety,2025-09-15,SIS-001,Not Started
+Fire Protection System Design,Safety,2025-09-20,FPS-001,Not Started
+Environmental Compliance Report,Environmental,2025-09-25,ENV-001,Not Started 

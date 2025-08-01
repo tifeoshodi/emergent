@@ -57,25 +57,36 @@ class PMFusionAPI {
   }
 
   // Helper method to get auth headers
-  async getAuthHeaders() {
+  async getAuthHeaders(includeContentType = true) {
     const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
     // Use demo user as fallback if no user is logged in
     const demoUserId = 'aa83214c-367b-4231-a682-0bcc4417d954';
     
-    return {
-      'Content-Type': 'application/json',
+    const headers = {
       'X-User-ID': userId || demoUserId
     };
+    
+    if (includeContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    return headers;
   }
 
   // Generic API request method with timeout
-  async request(endpoint, options = {}) {
+  async request(endpoint, method = 'GET', body = null) {
     const headers = await this.getAuthHeaders();
     
     const config = {
+      method,
       headers,
-      ...options,
     };
+
+    if (body && typeof body === 'string') {
+      config.body = body;
+    } else if (body && typeof body === 'object') {
+      config.body = JSON.stringify(body);
+    }
 
     try {
       // Create an AbortController to handle timeouts
@@ -112,15 +123,51 @@ class PMFusionAPI {
     }
   }
 
+  // File upload method
+  async uploadFile(endpoint, formData) {
+    const headers = await this.getAuthHeaders(false); // Don't include Content-Type for FormData
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS * 3); // Longer timeout for uploads
+      
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        let errorMessage = `Upload Error: ${response.status} - ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage += ` - ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
+        } catch {
+          const errorText = await response.text();
+          errorMessage += ` - ${errorText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error(`Upload timeout after ${API_TIMEOUT_MS * 3}ms`);
+      }
+      console.error(`Upload Error for ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // PHASE 1: PROJECT CREATION ENDPOINTS
   // ============================================================================
 
   async createProject(projectData) {
-    return this.request('/projects', {
-      method: 'POST',
-      body: JSON.stringify(projectData),
-    });
+    return this.request('/projects', 'POST', projectData);
   }
 
   async getProjects() {
@@ -132,16 +179,11 @@ class PMFusionAPI {
   }
 
   async updateProject(projectId, projectData) {
-    return this.request(`/projects/${projectId}`, {
-      method: 'PUT',
-      body: JSON.stringify(projectData),
-    });
+    return this.request(`/projects/${projectId}`, 'PUT', projectData);
   }
 
   async generateProjectWBS(projectId) {
-    return this.request(`/projects/${projectId}/wbs`, {
-      method: 'POST',
-    });
+    return this.request(`/projects/${projectId}/wbs`, 'POST');
   }
 
   async getProjectWBS(projectId) {
@@ -149,9 +191,7 @@ class PMFusionAPI {
   }
 
   async syncTasksFromWBS(projectId) {
-    return this.request(`/projects/${projectId}/wbs/sync-tasks`, {
-      method: 'POST',
-    });
+    return this.request(`/projects/${projectId}/wbs/sync-tasks`, 'POST');
   }
 
   async getTasks(projectId = null) {
@@ -160,10 +200,7 @@ class PMFusionAPI {
   }
 
   async assignTask(taskId, assignedTo) {
-    return this.request(`/tasks/${taskId}/assign`, {
-      method: 'PUT',
-      body: JSON.stringify({ assigned_to: assignedTo }),
-    });
+    return this.request(`/tasks/${taskId}/assign`, 'PUT', { assigned_to: assignedTo });
   }
 
   async getDisciplineUsers(discipline) {
@@ -179,14 +216,11 @@ class PMFusionAPI {
   }
 
   async updateTask(taskId, taskData) {
-    return this.request(`/tasks/${taskId}`, {
-      method: 'PUT',
-      body: JSON.stringify(taskData),
-    });
+    return this.request(`/tasks/${taskId}`, 'PUT', taskData);
   }
 
-  async assignTask(taskId, assigneeId) {
-    return this.updateTask(taskId, { assignee_id: assigneeId });
+  async assignTaskToUser(taskId, assigneeId) {
+    return this.updateTask(taskId, { assigned_to: assigneeId });
   }
 
   async updateTaskStatus(taskId, status) {
@@ -212,16 +246,11 @@ class PMFusionAPI {
   }
 
   async finalizeDocument(documentId) {
-    return this.request(`/documents/${documentId}/dcc_finalize`, {
-      method: 'POST'
-    });
+    return this.request(`/documents/${documentId}/dcc_finalize`, 'POST');
   }
 
   async updateDocumentStatus(documentId, statusData) {
-    return this.request(`/documents/${documentId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify(statusData)
-    });
+    return this.request(`/documents/${documentId}/status`, 'PUT', statusData);
   }
 
   async getDocumentAnalytics(projectId) {
@@ -240,22 +269,78 @@ class PMFusionAPI {
   }
 
   async createDiscipline(disciplineData) {
-    return this.request('/disciplines', {
-      method: 'POST',
-      body: JSON.stringify(disciplineData),
-    });
+    return this.request('/disciplines', 'POST', disciplineData);
   }
 
   async addDisciplineMember(name, userId) {
-    return this.request(`/disciplines/${name}/members/${userId}`, {
-      method: 'POST'
-    });
+    return this.request(`/disciplines/${name}/members/${userId}`, 'POST');
   }
 
   async removeDisciplineMember(name, userId) {
-    return this.request(`/disciplines/${name}/members/${userId}`, {
-      method: 'DELETE'
-    });
+    return this.request(`/disciplines/${name}/members/${userId}`, 'DELETE');
+  }
+
+  // ============================================================================
+  // USER MANAGEMENT ENDPOINTS
+  // ============================================================================
+
+  async getUsers() {
+    return this.request('/users');
+  }
+
+  async getUser(userId) {
+    return this.request(`/users/${userId}`);
+  }
+
+  async createUser(userData) {
+    return this.request('/users', 'POST', userData);
+  }
+
+  async updateUser(userId, userData) {
+    return this.request(`/users/${userId}`, 'PUT', userData);
+  }
+
+  // ============================================================================
+  // MDR (Master Document Register) ENDPOINTS
+  // ============================================================================
+
+  async uploadMDR(formData) {
+    return this.uploadFile('/mdr/upload', formData);
+  }
+
+  async getMDREntries(projectId, filters = {}) {
+    let endpoint = `/mdr/entries/${projectId}`;
+    const params = new URLSearchParams();
+    
+    if (filters.discipline) params.append('discipline', filters.discipline);
+    if (filters.status) params.append('status', filters.status);
+    
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+    
+    return this.request(endpoint);
+  }
+
+  async getMDRDashboard(projectId) {
+    return this.request(`/mdr/dashboard/${projectId}`);
+  }
+
+  async updateMDREntry(entryId, entryData) {
+    return this.request(`/mdr/entries/${entryId}`, 'PUT', entryData);
+  }
+
+  async deleteMDREntry(entryId) {
+    return this.request(`/mdr/entries/${entryId}`, 'DELETE');
+  }
+
+  async getMDRKanban(projectId, discipline = null) {
+    let endpoint = `/mdr/kanban/${projectId}`;
+    if (discipline) {
+      endpoint += `?discipline=${discipline}`;
+    }
+    return this.request(endpoint);
   }
 
   async healthCheck() {

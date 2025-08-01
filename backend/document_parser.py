@@ -428,3 +428,26 @@ def parse_document(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
     text = extract_text(file_path)
     logger.debug("Extracted text: %s", text)
     return parse_text(text)
+
+
+# AI-Powered Document Parser Integration
+try:
+    from ai_document_parser_robust import robust_parse_document
+    AI_PARSER_AVAILABLE = True
+    logger.info("✅ AI document parser integration available")
+except ImportError:
+    AI_PARSER_AVAILABLE = False
+    logger.warning("AI document parser not available")
+
+def parse_document_with_ai(file_path: Path) -> Dict[str, List[Dict[str, str]]]:
+    """Enhanced document parsing using AI reasoning scheduler"""
+    if AI_PARSER_AVAILABLE:
+        try:
+            logger.info(f"🧠 Using AI-powered parsing for: {file_path.name}")
+            return robust_parse_document(file_path)
+        except Exception as e:
+            logger.error(f"AI parsing failed, falling back to original: {e}")
+            return parse_document(file_path)
+    else:
+        logger.info("AI parser not available, using original parser")
+        return parse_document(file_path)
