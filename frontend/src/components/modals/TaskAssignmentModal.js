@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { Button, Card, CardHeader, CardTitle, CardContent } from '../ui';
+import useClickOutside from '../../hooks/useClickOutside';
 
 const TaskAssignmentModal = ({ task, teamMembers, onAssign, onClose }) => {
   const [selectedAssignee, setSelectedAssignee] = useState(task.assigned_to || '');
   const [assigning, setAssigning] = useState(false);
+  
+  // Add click outside functionality
+  const modalRef = useClickOutside(onClose);
 
   const handleAssign = async () => {
     if (!selectedAssignee) {
@@ -44,7 +48,7 @@ const TaskAssignmentModal = ({ task, teamMembers, onAssign, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b">
             <div className="flex justify-between items-start">

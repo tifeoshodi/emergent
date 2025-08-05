@@ -12,6 +12,7 @@ const TeamLeaderDashboard = ({ user, onLogout }) => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [disciplineStats, setDisciplineStats] = useState({});
+  const [recentFiles, setRecentFiles] = useState([]);
 
   useEffect(() => {
     loadProjects();
@@ -22,6 +23,7 @@ const TeamLeaderDashboard = ({ user, onLogout }) => {
     if (selectedProject && user.discipline) {
       loadKanbanData();
       loadDisciplineStats();
+      loadRecentFiles();
     }
   }, [selectedProject, user.discipline]);
 
@@ -67,6 +69,43 @@ const TeamLeaderDashboard = ({ user, onLogout }) => {
       setDisciplineStats(stats);
     } catch (error) {
       console.error('Failed to load discipline stats:', error);
+    }
+  };
+
+  const loadRecentFiles = async () => {
+    try {
+      // Get files uploaded by team members across all disciplines in this project
+      const response = await pmfusionAPI.request(`/documents?project_id=${selectedProject}`);
+      
+      // Sort by upload date and take the 10 most recent
+      const sortedFiles = response
+        .filter(doc => doc.task_id) // Only show task attachments
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 10);
+      
+      // Enhance files with uploader information
+      const enhancedFiles = await Promise.all(sortedFiles.map(async (file) => {
+        try {
+          // Get user information for the uploader
+          const users = await pmfusionAPI.request('/users');
+          const uploader = users.find(u => u.id === file.created_by);
+          return {
+            ...file,
+            uploader_name: uploader ? uploader.name : 'Unknown User'
+          };
+        } catch (error) {
+          console.error('Failed to get uploader info:', error);
+          return {
+            ...file,
+            uploader_name: 'Unknown User'
+          };
+        }
+      }));
+      
+      setRecentFiles(enhancedFiles);
+    } catch (error) {
+      console.error('Failed to load recent files:', error);
+      setRecentFiles([]);
     }
   };
 
@@ -116,55 +155,91 @@ const TeamLeaderDashboard = ({ user, onLogout }) => {
     };
   };
 
-  const renderTaskCard = (task, columnKey) => (
-    <div
-      key={task.id}
-      onClick={() => handleTaskClick(task)}
-      className={`p-3 mb-3 border-l-4 rounded-r-md cursor-pointer hover:shadow-md transition-shadow ${getTaskPriorityColor(task.priority)}`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <h4 className="text-sm font-medium text-gray-900 line-clamp-2">{task.title}</h4>
-        {task.tags?.includes('mdr') && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 ml-2">
-            MDR
-          </span>
-        )}
-      </div>
-      
-      <div className="space-y-1 text-xs text-gray-500">
-        {task.assigned_to ? (
+  // Create a proper TaskCard component to avoid hooks issues
+  const TaskCard = ({ task, teamMembers, onTaskClick, getTaskPriorityColor }) => {
+    const [taskAttachmentCount, setTaskAttachmentCount] = useState(0);
+
+    useEffect(() => {
+      const loadTaskAttachments = async () => {
+        try {
+          const response = await pmfusionAPI.request(`/documents?task_id=${task.id}`);
+          setTaskAttachmentCount(response.length);
+        } catch (error) {
+          console.error('Failed to load task attachments:', error);
+        }
+      };
+      loadTaskAttachments();
+    }, [task.id]);
+
+    return (
+      <div
+        onClick={() => onTaskClick(task)}
+        className={`p-3 mb-3 border-l-4 rounded-r-md cursor-pointer hover:shadow-md transition-shadow ${getTaskPriorityColor(task.priority)}`}
+      >
+        <div className="flex justify-between items-start mb-2">
+          <h4 className="text-sm font-medium text-gray-900 line-clamp-2">{task.title}</h4>
+          <div className="flex items-center space-x-2 ml-2">
+            {task.tags?.includes('mdr') && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                MDR
+              </span>
+            )}
+            {taskAttachmentCount > 0 && (
+              <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full text-xs" title={`${taskAttachmentCount} attachment${taskAttachmentCount > 1 ? 's' : ''}`}>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span className="font-medium">{taskAttachmentCount}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="space-y-1 text-xs text-gray-500">
+          {task.assigned_to ? (
+            <div className="flex items-center">
+              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Assigned to: {teamMembers.find(m => m.id === task.assigned_to)?.name || 'Unknown'}
+            </div>
+          ) : (
+            <div className="flex items-center text-orange-600">
+              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 15.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              Unassigned
+            </div>
+          )}
+          
+          {task.due_date && (
+            <div className="flex items-center">
+              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Due: {new Date(task.due_date).toLocaleDateString()}
+            </div>
+          )}
+          
           <div className="flex items-center">
             <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Assigned to: {teamMembers.find(m => m.id === task.assigned_to)?.name || 'Unknown'}
+            Priority: {task.priority}
           </div>
-        ) : (
-          <div className="flex items-center text-orange-600">
-            <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 15.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            Unassigned
-          </div>
-        )}
-        
-        {task.due_date && (
-          <div className="flex items-center">
-            <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Due: {new Date(task.due_date).toLocaleDateString()}
-          </div>
-        )}
-        
-        <div className="flex items-center">
-          <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Priority: {task.priority}
         </div>
       </div>
-    </div>
+    );
+  };
+
+  const renderTaskCard = (task, columnKey) => (
+    <TaskCard 
+      key={task.id}
+      task={task}
+      teamMembers={teamMembers}
+      onTaskClick={handleTaskClick}
+      getTaskPriorityColor={getTaskPriorityColor}
+    />
   );
 
   const stats = getStatusStats();
@@ -455,6 +530,58 @@ const TeamLeaderDashboard = ({ user, onLogout }) => {
                 <p className="text-gray-500">No tasks found for this discipline and project.</p>
                 <p className="text-sm text-gray-400 mt-1">Tasks will appear here after the Scheduler uploads an MDR and generates the WBS.</p>
               </div>
+            )}
+
+            {/* Recent Files Section */}
+            {selectedProject && recentFiles.length > 0 && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Recent Task Deliverables
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">Files uploaded by team members across all disciplines</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {recentFiles.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.title}</p>
+                            <div className="flex items-center text-xs text-gray-500 space-x-4">
+                              <span>Discipline: {file.discipline}</span>
+                              <span>Uploader: {file.uploader_name}</span>
+                              <span>Uploaded: {new Date(file.created_at).toLocaleDateString()}</span>
+                              <span>Size: {(file.file_size / 1024).toFixed(1)} KB</span>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              await pmfusionAPI.downloadFile(`/documents/${file.id}/download`, file.title);
+                            } catch (error) {
+                              console.error('Download error:', error);
+                              alert(`Failed to download ${file.title}: ${error.message}`);
+                            }
+                          }}
+                          className="ml-4 bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-xs"
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </>
         )}

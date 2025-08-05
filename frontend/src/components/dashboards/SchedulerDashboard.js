@@ -4,6 +4,7 @@ import { Button, Card, CardHeader, CardTitle, CardContent, Input, Label } from '
 import ProjectCreateModal from '../modals/ProjectCreateModal';
 import ProjectDetailsModal from '../modals/ProjectDetailsModal';
 import DisciplineRegisterModal from '../modals/DisciplineRegisterModal';
+import ReportGenerator from '../ReportGenerator';
 
 const SchedulerDashboard = ({ user, onLogout }) => {
   const [projects, setProjects] = useState([]);
@@ -17,6 +18,7 @@ const SchedulerDashboard = ({ user, onLogout }) => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showProjectDetails, setShowProjectDetails] = useState(false);
   const [showDisciplineRegister, setShowDisciplineRegister] = useState(false);
+  const [showReportGenerator, setShowReportGenerator] = useState(false);
   const [selectedProjectForDetails, setSelectedProjectForDetails] = useState(null);
 
   useEffect(() => {
@@ -303,6 +305,14 @@ const SchedulerDashboard = ({ user, onLogout }) => {
               >
                 MDR Entries ({mdrEntries.length})
               </button>
+              {selectedProject && (
+                <button
+                  onClick={() => setShowReportGenerator(true)}
+                  className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md ml-4"
+                >
+                  Generate Report
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -478,6 +488,14 @@ const SchedulerDashboard = ({ user, onLogout }) => {
         <DisciplineRegisterModal
           project={projects.find(p => p.id === selectedProject)}
           onClose={() => setShowDisciplineRegister(false)}
+          currentUser={user}
+        />
+      )}
+
+      {showReportGenerator && selectedProject && (
+        <ReportGenerator
+          project={projects.find(p => p.id === selectedProject)}
+          onClose={() => setShowReportGenerator(false)}
           currentUser={user}
         />
       )}

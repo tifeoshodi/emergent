@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../../lib/api';
 import { Button, Card, CardHeader, CardTitle, CardContent } from '../ui';
+import useClickOutside from '../../hooks/useClickOutside';
 
 const DisciplineRegisterModal = ({ project, onClose, currentUser }) => {
   const [disciplines, setDisciplines] = useState([]);
@@ -9,6 +10,9 @@ const DisciplineRegisterModal = ({ project, onClose, currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({});
+  
+  // Add click outside functionality
+  const modalRef = useClickOutside(onClose);
 
   const defaultDisciplines = [
     { name: 'Project Management', enabled: false, taskCount: 0 },
@@ -181,7 +185,7 @@ const DisciplineRegisterModal = ({ project, onClose, currentUser }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b">
             <div className="flex justify-between items-start">

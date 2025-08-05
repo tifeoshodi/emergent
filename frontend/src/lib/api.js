@@ -162,6 +162,47 @@ class PMFusionAPI {
     }
   }
 
+  // File download method
+  async downloadFile(endpoint, filename) {
+    const headers = await this.getAuthHeaders(false); // Don't include Content-Type for downloads
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS * 2); // Longer timeout for downloads
+      
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status} - ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      return true;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error(`Download timeout after ${API_TIMEOUT_MS * 2}ms`);
+      }
+      console.error(`Download Error for ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // PHASE 1: PROJECT CREATION ENDPOINTS
   // ============================================================================

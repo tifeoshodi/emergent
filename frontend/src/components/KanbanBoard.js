@@ -380,6 +380,27 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
   };
 
   const TaskCard = ({ task, index, columnId }) => {
+    const [attachmentCount, setAttachmentCount] = useState(0);
+    const [loadingAttachments, setLoadingAttachments] = useState(false);
+
+    useEffect(() => {
+      loadAttachmentCount();
+    }, [task.id]);
+
+    const loadAttachmentCount = async () => {
+      try {
+        setLoadingAttachments(true);
+        // Use the API client for consistency
+        const documents = await pmfusionAPI.request(`/documents?task_id=${task.id}`);
+        setAttachmentCount(documents.length);
+      } catch (error) {
+        console.error('Failed to load attachment count:', error);
+        setAttachmentCount(0);
+      } finally {
+        setLoadingAttachments(false);
+      }
+    };
+
     const getPriorityColor = (priority) => {
       switch (priority) {
         case 1: return 'border-red-500 bg-red-50';
@@ -436,6 +457,15 @@ const KanbanBoard = ({ disciplineId, projectId, currentUser }) => {
             <div className="flex justify-between items-center text-xs text-gray-500">
               <span>{task.assignee_name || 'Unassigned'}</span>
               <div className="flex items-center gap-2">
+                {/* Attachment Count */}
+                {attachmentCount > 0 && (
+                  <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full" title={`${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''}`}>
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    <span className="font-medium">{attachmentCount}</span>
+                  </div>
+                )}
                 {!task.assigned_to && (
                   <button
                     onClick={(e) => {

@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../../lib/api';
 import { Button, Card, CardHeader, CardTitle, CardContent } from '../ui';
+import useClickOutside from '../../hooks/useClickOutside';
 
 const ProjectDetailsModal = ({ project, onClose, onProjectUpdated, onProjectDeleted, currentUser }) => {
   const [projectStats, setProjectStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  // Add click outside functionality
+  const modalRef = useClickOutside(onClose);
 
   useEffect(() => {
     loadProjectStats();
@@ -92,7 +96,7 @@ const ProjectDetailsModal = ({ project, onClose, onProjectUpdated, onProjectDele
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b">
             <div className="flex justify-between items-start">

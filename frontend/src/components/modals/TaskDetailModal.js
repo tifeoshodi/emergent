@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import pmfusionAPI from '../../lib/api';
 import { Button, Card, CardHeader, CardTitle, CardContent, Input } from '../ui';
+import useClickOutside from '../../hooks/useClickOutside';
 
 const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
   const [taskData, setTaskData] = useState(task);
@@ -10,6 +11,9 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
+  
+  // Add click outside functionality
+  const modalRef = useClickOutside(onClose);
 
   useEffect(() => {
     loadComments();
@@ -35,10 +39,33 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
 
   const loadAttachments = async () => {
     try {
-      // Mock attachments for now - in real implementation, this would fetch from API
-      setAttachments([]);
+      setLoading(true);
+      // Fetch documents attached to this task using the API client
+      const documents = await pmfusionAPI.request(`/documents?task_id=${task.id}`);
+      
+      // Get user information to resolve uploader names
+      const users = await pmfusionAPI.request('/users');
+      
+      const taskAttachments = documents.map(doc => {
+        const uploader = users.find(u => u.id === doc.created_by);
+        return {
+          id: doc.id,
+          name: doc.file_name,
+          size: doc.file_size,
+          type: doc.file_type,
+          uploaded_by: doc.created_by,
+          uploader_name: uploader ? uploader.name : 'Unknown User',
+          uploaded_at: doc.created_at,
+          document_id: doc.id
+        };
+      });
+      setAttachments(taskAttachments);
     } catch (error) {
       console.error('Failed to load attachments:', error);
+      // Still set empty array on error to prevent issues
+      setAttachments([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,17 +112,39 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
 
     setUploading(true);
     try {
+      const newAttachments = [];
       for (const file of files) {
-        // Mock file upload - in real implementation, this would upload to API
-        const attachment = {
-          id: Date.now().toString() + Math.random(),
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          uploaded_by: currentUser.name,
-          uploaded_at: new Date().toISOString()
-        };
-        setAttachments([...attachments, attachment]);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', file.name);
+        formData.append('description', `Uploaded for task: ${taskData.title}`);
+        formData.append('category', 'other');
+        formData.append('task_id', taskData.id);
+        formData.append('project_id', taskData.project_id || '');
+        formData.append('tags', 'task-attachment');
+
+        try {
+          const uploadedDoc = await pmfusionAPI.uploadFile('/documents/upload', formData);
+          const attachment = {
+            id: uploadedDoc.id,
+            name: uploadedDoc.file_name,
+            size: uploadedDoc.file_size,
+            type: uploadedDoc.file_type,
+            uploaded_by: currentUser.name,
+            uploaded_at: uploadedDoc.created_at || new Date().toISOString(),
+            document_id: uploadedDoc.id
+          };
+          newAttachments.push(attachment);
+        } catch (uploadError) {
+          console.error(`Failed to upload ${file.name}:`, uploadError);
+          alert(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+      }
+      
+      if (newAttachments.length > 0) {
+        setAttachments([...attachments, ...newAttachments]);
+        // Reload attachments to get the latest list
+        await loadAttachments();
       }
       event.target.value = ''; // Reset file input
     } catch (error) {
@@ -106,9 +155,17 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
     }
   };
 
-  const handleFileDownload = (attachment) => {
-    // Mock download - in real implementation, this would download from API
-    alert(`Downloading ${attachment.name}...`);
+  const handleFileDownload = async (attachment) => {
+    if (attachment.document_id) {
+      try {
+        await pmfusionAPI.downloadFile(`/documents/${attachment.document_id}/download`, attachment.name);
+      } catch (error) {
+        console.error('Download error:', error);
+        alert(`Failed to download ${attachment.name}: ${error.message}`);
+      }
+    } else {
+      alert(`Downloading ${attachment.name}...`);
+    }
   };
 
   const formatFileSize = (bytes) => {
@@ -145,7 +202,7 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b">
             <div className="flex justify-between items-start">
@@ -329,7 +386,7 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
                   {/* Attachments List */}
                   {attachments.length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="font-medium text-gray-900">Uploaded Files</h4>
+                      <h4 className="font-medium text-gray-900">Uploaded Files ({attachments.length})</h4>
                       {attachments.map((attachment) => (
                         <div key={attachment.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
                           <div className="flex items-center space-x-3">
@@ -341,7 +398,7 @@ const TaskDetailModal = ({ task, onClose, onUpdate, currentUser }) => {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-gray-900 truncate">{attachment.name}</p>
                               <p className="text-xs text-gray-500">
-                                {formatFileSize(attachment.size)} • Uploaded by {attachment.uploaded_by} • {new Date(attachment.uploaded_at).toLocaleDateString()}
+                                {formatFileSize(attachment.size)} • Uploaded by {attachment.uploader_name} • {new Date(attachment.uploaded_at).toLocaleDateString()}
                               </p>
                             </div>
                           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import pmfusionAPI from '../../lib/api';
 import { Button, Card, CardHeader, CardTitle, CardContent, Input, Label } from '../ui';
+import useClickOutside from '../../hooks/useClickOutside';
 
 const ProjectCreateModal = ({ onClose, onProjectCreated, currentUser }) => {
   const [formData, setFormData] = useState({
@@ -12,6 +13,9 @@ const ProjectCreateModal = ({ onClose, onProjectCreated, currentUser }) => {
   });
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // Add click outside functionality
+  const modalRef = useClickOutside(onClose);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -77,7 +81,7 @@ const ProjectCreateModal = ({ onClose, onProjectCreated, currentUser }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b">
             <div className="flex justify-between items-center">

@@ -3240,14 +3240,49 @@ async def get_mdr_kanban_board(
 @api_router.get("/documents", response_model=List[Document])
 async def get_documents(
     project_id: Optional[str] = None,
+    task_id: Optional[str] = None,
     category: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
     current_user: User = Depends(get_current_user),
 ):
-    query = {"discipline": current_user.discipline}
+    # Role-based access control
+    if current_user.role in [UserRole.ENGINEERING_MANAGER, UserRole.PROJECT_MANAGER, UserRole.SCHEDULER]:
+        # Engineering managers, project managers, and schedulers can see documents across disciplines
+        # but only for projects/tasks they have access to
+        query = {}
+        
+        # If task_id is specified, check if user has access to that task
+        if task_id:
+            task = await db.tasks.find_one({"id": task_id})
+            if not task:
+                raise HTTPException(status_code=404, detail="Task not found")
+            
+            # Engineering managers can see tasks in their discipline or tasks they're managing
+            if current_user.role == UserRole.ENGINEERING_MANAGER:
+                if task.get("discipline") != current_user.discipline:
+                    # Check if this engineering manager has project-level access
+                    if project_id:
+                        project = await db.projects.find_one({"id": project_id})
+                        if not project:
+                            query["discipline"] = current_user.discipline  # Fallback to discipline filter
+                    else:
+                        query["discipline"] = current_user.discipline  # Fallback to discipline filter
+            
+            query["task_id"] = task_id
+        else:
+            # For engineering managers, show documents from their discipline and any projects they manage
+            if current_user.role == UserRole.ENGINEERING_MANAGER:
+                if project_id:
+                    # Check project access - for now, allow access to cross-discipline files in the same project
+                    query["project_id"] = project_id
+                else:
+                    query["discipline"] = current_user.discipline
+    else:
+        # Regular engineers can only see documents in their own discipline
+        query = {"discipline": current_user.discipline}
 
-    if project_id:
+    if project_id and "project_id" not in query:
         query["project_id"] = project_id
     if category:
         query["category"] = category
@@ -3280,8 +3315,27 @@ async def get_document(
     document_id: str, current_user: User = Depends(get_current_user)
 ):
     document = await db.documents.find_one({"id": document_id})
-    if not document or document.get("discipline") != current_user.discipline:
+    if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Role-based access control
+    if current_user.role in [UserRole.ENGINEERING_MANAGER, UserRole.PROJECT_MANAGER, UserRole.SCHEDULER]:
+        # These roles can access documents across disciplines if they have project/task access
+        if document.get("project_id"):
+            # Check if user has access to the project
+            project = await db.projects.find_one({"id": document["project_id"]})
+            if not project:
+                # If project not found, fall back to discipline check for engineering managers
+                if current_user.role == UserRole.ENGINEERING_MANAGER and document.get("discipline") != current_user.discipline:
+                    raise HTTPException(status_code=404, detail="Document not found")
+        elif current_user.role == UserRole.ENGINEERING_MANAGER and document.get("discipline") != current_user.discipline:
+            # Engineering managers can only access cross-discipline docs if they're project-related
+            raise HTTPException(status_code=404, detail="Document not found")
+    else:
+        # Regular engineers can only access documents in their own discipline
+        if document.get("discipline") != current_user.discipline:
+            raise HTTPException(status_code=404, detail="Document not found")
+    
     return Document(**document)
 
 
@@ -3290,8 +3344,26 @@ async def download_document(
     document_id: str, current_user: User = Depends(get_current_user)
 ):
     document = await db.documents.find_one({"id": document_id})
-    if not document or document.get("discipline") != current_user.discipline:
+    if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Role-based access control (same logic as get_document)
+    if current_user.role in [UserRole.ENGINEERING_MANAGER, UserRole.PROJECT_MANAGER, UserRole.SCHEDULER]:
+        # These roles can access documents across disciplines if they have project/task access
+        if document.get("project_id"):
+            # Check if user has access to the project
+            project = await db.projects.find_one({"id": document["project_id"]})
+            if not project:
+                # If project not found, fall back to discipline check for engineering managers
+                if current_user.role == UserRole.ENGINEERING_MANAGER and document.get("discipline") != current_user.discipline:
+                    raise HTTPException(status_code=404, detail="Document not found")
+        elif current_user.role == UserRole.ENGINEERING_MANAGER and document.get("discipline") != current_user.discipline:
+            # Engineering managers can only access cross-discipline docs if they're project-related
+            raise HTTPException(status_code=404, detail="Document not found")
+    else:
+        # Regular engineers can only access documents in their own discipline
+        if document.get("discipline") != current_user.discipline:
+            raise HTTPException(status_code=404, detail="Document not found")
 
     file_path = Path(document["file_path"])
     if not file_path.exists():
@@ -3300,6 +3372,40 @@ async def download_document(
     return FileResponse(
         path=file_path, filename=document["file_name"], media_type=document["file_type"]
     )
+
+
+@api_router.get("/tasks/{task_id}/attachments", response_model=List[Document])
+async def get_task_attachments(
+    task_id: str, current_user: User = Depends(get_current_user)
+):
+    """Get all document attachments for a specific task with role-based access control."""
+    
+    # First, check if the task exists and if user has access to it
+    task = await db.tasks.find_one({"id": task_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Role-based access control for tasks
+    if current_user.role in [UserRole.ENGINEERING_MANAGER, UserRole.PROJECT_MANAGER, UserRole.SCHEDULER]:
+        # Engineering managers can see tasks across disciplines if they're in the same project
+        if current_user.role == UserRole.ENGINEERING_MANAGER:
+            if task.get("discipline") != current_user.discipline:
+                # Check if this is the same project - allow cross-discipline access within projects
+                if task.get("project_id"):
+                    project = await db.projects.find_one({"id": task["project_id"]})
+                    if not project:
+                        raise HTTPException(status_code=403, detail="Access denied to this task")
+                else:
+                    raise HTTPException(status_code=403, detail="Access denied to this task")
+        # Project managers and schedulers have broader access
+    else:
+        # Regular engineers can only see tasks in their own discipline
+        if task.get("discipline") != current_user.discipline:
+            raise HTTPException(status_code=403, detail="Access denied to this task")
+    
+    # Get documents attached to this task
+    documents = await db.documents.find({"task_id": task_id}).to_list(1000)
+    return [Document(**doc) for doc in documents]
 
 
 @api_router.put("/documents/{document_id}", response_model=Document)
